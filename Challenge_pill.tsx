@@ -1,9 +1,48 @@
 // VitaminChallenge.tsx — Framer 컴포넌트
 // 영양제 등록 → 매일 탭으로 체크 → 모두 챙기면 완료
 // 외곽 폰 목업 chrome 없음, 부모 frame 사이즈 = 실제 앱 화면
+//
+// 동작 모드:
+//   - userId 있음 (실제): URL ?userId=X → Supabase RPC로 영양제 목록·체크 영속
+//   - userId 없음 (mock): previewState로 Framer 캔버스 미리보기 (메모리만)
+// 외부 적립 API(POST /mission-completed)는 Phase 2에서 추가 예정
 
 import React, { useState, useEffect } from "react"
 import { addPropertyControls, ControlType } from "framer"
+
+/* ═══════════════════════════════════════════
+   Supabase (FocusCoin 공용 프로젝트)
+   ═══════════════════════════════════════════ */
+const SUPABASE_URL = "https://gjnwriqewsrwpbtxqbea.supabase.co"
+const SUPABASE_ANON_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqbndyaXFld3Nyd3BidHhxYmVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzOTIzNjQsImV4cCI6MjA5NTk2ODM2NH0.XAcRHkdHh8WmwhJgYht__CPmopQadvWVR3h7c8uFswU"
+
+function getQueryParam(name: string): string {
+    if (typeof window === "undefined") return ""
+    try {
+        return new URLSearchParams(window.location.search).get(name) || ""
+    } catch {
+        return ""
+    }
+}
+
+async function rpc(
+    fn: string,
+    body: Record<string, unknown>
+): Promise<any> {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+        method: "POST",
+        keepalive: true,
+        headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`rpc_${fn}_${res.status}`)
+    return res.json()
+}
 
 /* ═══════════════════════════════════════════
    Design Tokens
@@ -56,7 +95,7 @@ const TRANS_CENTER = `transform ${SHEET_DUR - 80}ms ${EASE_OUT}, opacity ${FADE_
 const TRANS_OVERLAY = `opacity ${FADE_DUR}ms ease`
 
 /* ═══════════════════════════════════════════
-   Embedded CSS (애니메이션 모두 제거 — inline transition으로 대체)
+   Embedded CSS
    ═══════════════════════════════════════════ */
 const CSS = `
   .vc *, .vc *::before, .vc *::after {
@@ -115,7 +154,7 @@ type Vitamin = {
 type Popup = null | "add" | "reward"
 
 /* ═══════════════════════════════════════════
-   Defaults / Data
+   Defaults / Data (mock 모드 미리보기용)
    ═══════════════════════════════════════════ */
 const DEFAULT_VITAMINS: Vitamin[] = [
     { id: "v1", name: "비타민 C", dose: "1000mg", time: "아침" },
@@ -179,6 +218,11 @@ export default function VitaminChallenge({
 }: {
     previewState?: string
 }) {
+    // userId 한 번만 추출 (mount 시점)
+    const [userIdStr] = useState<string>(() => getQueryParam("userId"))
+    // mock 모드면 즉시 ready, 실제 모드면 RPC 응답 후 ready
+    const [ready, setReady] = useState<boolean>(() => !getQueryParam("userId"))
+
     const [vitamins, setVitamins] = useState<Vitamin[]>([])
     const [taken, setTaken] = useState<Record<string, boolean>>({})
     const [claimed, setClaimed] = useState(false)
@@ -187,11 +231,44 @@ export default function VitaminChallenge({
     const [newName, setNewName] = useState("")
     const [newDose, setNewDose] = useState("")
     const [newTime, setNewTime] = useState("")
-    // 시트 등장/사라짐 — popup이 켜진 다음 frame에 true로 토글
+    // 시트 등장/사라짐
     const [sheetReady, setSheetReady] = useState(false)
 
-    /* ─── Preview state sync ─── */
+    /* ─── 실제 모드: Supabase에서 초기 상태 로드 ─── */
     useEffect(() => {
+        if (!userIdStr) return
+        let cancelled = false
+        rpc("get_pill_status", { p_user_id: userIdStr })
+            .then((r) => {
+                if (cancelled) return
+                if (r && r.ok) {
+                    const items: Vitamin[] = (r.items || []).map((it: any) => ({
+                        id: it.id,
+                        name: it.name,
+                        dose: it.dose || undefined,
+                        time: it.time_slot || undefined,
+                    }))
+                    setVitamins(items)
+                    const takenMap: Record<string, boolean> = {}
+                    ;(r.taken_ids || []).forEach((id: string) => {
+                        takenMap[id] = true
+                    })
+                    setTaken(takenMap)
+                    setClaimed(!!r.claimed)
+                }
+                setReady(true)
+            })
+            .catch(() => {
+                if (!cancelled) setReady(true)
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [userIdStr])
+
+    /* ─── mock 모드: previewState 분기 (userId 없을 때만) ─── */
+    useEffect(() => {
+        if (userIdStr) return
         setPopup(null)
         setEditing(false)
         setNewName("")
@@ -255,7 +332,7 @@ export default function VitaminChallenge({
                 setTaken({})
                 setClaimed(false)
         }
-    }, [previewState])
+    }, [previewState, userIdStr])
 
     /* ─── Sheet enter/exit motion ─── */
     useEffect(() => {
@@ -263,11 +340,8 @@ export default function VitaminChallenge({
             setSheetReady(false)
             return
         }
-        // popup이 켜지면 즉시 ready=false (시작점 강제)
         setSheetReady(false)
-        // 다음 paint frame에 ready=true → transition 트리거
         const id = requestAnimationFrame(() => {
-            // double rAF로 first paint 이후 보장
             requestAnimationFrame(() => setSheetReady(true))
         })
         return () => cancelAnimationFrame(id)
@@ -279,10 +353,28 @@ export default function VitaminChallenge({
     const allTaken = total > 0 && takenCount === total
     const pct = total > 0 ? Math.round((takenCount / total) * 100) : 0
 
-    /* ─── Handlers ─── */
-    const handleToggle = (id: string) => {
+    /* ─── Handlers (낙관적 업데이트 + RPC) ─── */
+    const handleToggle = async (id: string) => {
         if (claimed || editing) return
-        setTaken((prev) => ({ ...prev, [id]: !prev[id] }))
+        const wasTaken = !!taken[id]
+        // 낙관적
+        setTaken((prev) => ({ ...prev, [id]: !wasTaken }))
+
+        if (!userIdStr) return
+
+        try {
+            const r = await rpc("set_pill_taken", {
+                p_user_id: userIdStr,
+                p_pill_id: id,
+                p_taken: !wasTaken,
+            })
+            if (!r || !r.ok) {
+                // 롤백
+                setTaken((prev) => ({ ...prev, [id]: wasTaken }))
+            }
+        } catch {
+            setTaken((prev) => ({ ...prev, [id]: wasTaken }))
+        }
     }
 
     const handleAddOpen = () => {
@@ -292,34 +384,83 @@ export default function VitaminChallenge({
         setPopup("add")
     }
 
-    const handleSaveVitamin = () => {
-        if (!newName.trim()) return
-        const newVit: Vitamin = {
-            id: `v${Date.now()}`,
-            name: newName.trim(),
-            dose: newDose.trim() || undefined,
-            time: newTime || undefined,
+    const handleSaveVitamin = async () => {
+        const name = newName.trim()
+        if (!name) return
+        const dose = newDose.trim() || undefined
+        const time = newTime || undefined
+
+        if (!userIdStr) {
+            // mock 모드
+            const newVit: Vitamin = {
+                id: `v${Date.now()}`,
+                name,
+                dose,
+                time,
+            }
+            setVitamins((prev) => [...prev, newVit])
+            setPopup(null)
+            return
         }
-        setVitamins((prev) => [...prev, newVit])
+
+        // 실제 모드: 모달 먼저 닫고 RPC 호출
         setPopup(null)
+        try {
+            const r = await rpc("add_pill_item", {
+                p_user_id: userIdStr,
+                p_name: name,
+                p_dose: dose || null,
+                p_time_slot: time || null,
+            })
+            if (r && r.ok && r.id) {
+                setVitamins((prev) => [
+                    ...prev,
+                    { id: r.id, name, dose, time },
+                ])
+            }
+        } catch {
+            // 실패 시 무시 (Phase 2에서 에러 토스트 고려)
+        }
     }
 
-    const handleDeleteVitamin = (id: string) => {
+    const handleDeleteVitamin = async (id: string) => {
+        // 낙관적
         setVitamins((prev) => prev.filter((v) => v.id !== id))
         setTaken((prev) => {
             const next = { ...prev }
             delete next[id]
             return next
         })
+
+        if (!userIdStr) return
+
+        try {
+            await rpc("delete_pill_item", {
+                p_user_id: userIdStr,
+                p_pill_id: id,
+            })
+        } catch {
+            // 무시
+        }
     }
 
     const handleComplete = () => {
         setPopup("reward")
     }
 
-    const handleClaim = () => {
+    const handleClaim = async () => {
+        // 낙관적
         setClaimed(true)
         setPopup(null)
+
+        if (!userIdStr) return
+
+        try {
+            await rpc("claim_pill_complete", { p_user_id: userIdStr })
+            // Phase 2: 외부 적립 API도 여기서 호출
+        } catch {
+            // 무시 (Phase 2에서 응답 분기)
+        }
     }
 
     const handleClosePopup = () => {
@@ -388,6 +529,11 @@ export default function VitaminChallenge({
         opacity: sheetReady ? 1 : 0,
         transition: TRANS_CENTER,
         willChange: "transform, opacity",
+    }
+
+    // 초기 로드 전(실제 모드) 빈 placeholder — Rules of Hooks: 모든 훅 선언 후 위치
+    if (!ready) {
+        return <div className="vc" style={rootSty} />
     }
 
     return (

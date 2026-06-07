@@ -49,7 +49,7 @@ create index if not exists pill_daily_logs_user_date_idx
 create table if not exists public.mission_completions (
     id uuid primary key default gen_random_uuid(),
     user_id text not null,
-    mission_type text not null,              -- 'DAILY_WATER_CUPS' / 'DAILY_PILL_TAKEN' / ...
+    mission_type text not null,              -- 'DAILY_WATER_CUPS' / 'DAILY_VITAMIN_CHECK' / ...
     completed_date date not null,
     reward_coins integer not null default 0,
     created_at timestamptz not null default now(),
@@ -110,7 +110,7 @@ begin
     select exists(
         select 1 from public.mission_completions
         where user_id = p_user_id
-          and mission_type = 'DAILY_PILL_TAKEN'
+          and mission_type = 'DAILY_VITAMIN_CHECK'
           and completed_date = v_today
     ) into v_claimed;
 
@@ -254,7 +254,7 @@ begin
     select exists(
         select 1 from public.mission_completions
         where user_id = p_user_id
-          and mission_type = 'DAILY_PILL_TAKEN'
+          and mission_type = 'DAILY_VITAMIN_CHECK'
           and completed_date = v_today
     ) into v_claimed;
 
@@ -319,7 +319,7 @@ begin
     insert into public.mission_completions (
         user_id, mission_type, completed_date, reward_coins
     )
-    values (p_user_id, 'DAILY_PILL_TAKEN', v_today, 0)
+    values (p_user_id, 'DAILY_VITAMIN_CHECK', v_today, 0)
     on conflict (user_id, mission_type, completed_date) do nothing;
     get diagnostics v_count = row_count;
 
