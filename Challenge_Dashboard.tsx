@@ -116,6 +116,7 @@ export default function MissionDashboard({
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(false)
     const [period, setPeriod] = useState<Period>("7d")
+    const [tab, setTab] = useState<string>("all")
     const [refreshKey, setRefreshKey] = useState(0)
 
     /* ─── 데이터 로드 ─── */
@@ -173,7 +174,9 @@ export default function MissionDashboard({
         const claimed = list.filter((r) => r.claimed).length
         return { participated, uniqueUsers, studiedDone, passed, claimed }
     }
-    const total = agg(rows)
+    const viewRows =
+        tab === "all" ? rows : rows.filter((r) => r.challenge_id === tab)
+    const total = agg(viewRows)
     const passRate =
         total.participated > 0
             ? Math.round((total.passed / total.participated) * 100)
@@ -256,6 +259,50 @@ export default function MissionDashboard({
                     </div>
                 </div>
 
+                {/* ─── 미션 탭 ─── */}
+                <div style={tabBarSty}>
+                    <button
+                        className="fcd-btn"
+                        onClick={() => setTab("all")}
+                        style={{
+                            ...tabBtnSty,
+                            background: tab === "all" ? T.cText : T.cBg,
+                            color: tab === "all" ? "#FFF" : T.cText2,
+                        }}
+                    >
+                        전체
+                    </button>
+                    {MISSIONS.map((m) => (
+                        <button
+                            key={m.id}
+                            className="fcd-btn"
+                            onClick={() => setTab(m.id)}
+                            style={{
+                                ...tabBtnSty,
+                                background: tab === m.id ? T.cText : T.cBg,
+                                color: tab === m.id ? "#FFF" : T.cText2,
+                            }}
+                        >
+                            {m.label}
+                            {!m.linked && (
+                                <span
+                                    style={{
+                                        ...tabMiniBadgeSty,
+                                        background:
+                                            tab === m.id
+                                                ? "rgba(255,255,255,0.22)"
+                                                : T.cWarnBg,
+                                        color:
+                                            tab === m.id ? "#FFF" : T.cWarn,
+                                    }}
+                                >
+                                    준비 중
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
                 {loadError && (
                     <div style={errorBannerSty}>
                         데이터를 불러오지 못했습니다. 새로고침을 눌러 주세요.
@@ -292,8 +339,8 @@ export default function MissionDashboard({
                     </div>
                 </div>
 
-                {/* ─── 퍼널 + 미션별 현황 (좌우 배치) ─── */}
-                <div style={twoColSty}>
+                {/* ─── 퍼널 + 미션별 현황 (전체 탭에서만 좌우 배치) ─── */}
+                <div style={tab === "all" ? twoColSty : oneColSty}>
                     <div style={cardSty}>
                         <div style={cardTitleSty}>완료 퍼널</div>
                         <div style={funnelWrapSty}>
@@ -345,6 +392,7 @@ export default function MissionDashboard({
                         </div>
                     </div>
 
+                    {tab === "all" && (
                     <div style={cardSty}>
                         <div style={cardTitleSty}>미션별 현황</div>
                         <div style={missionListSty}>
@@ -405,6 +453,7 @@ export default function MissionDashboard({
                             })}
                         </div>
                     </div>
+                    )}
                 </div>
 
                 {/* ─── 최근 활동 ─── */}
@@ -412,11 +461,11 @@ export default function MissionDashboard({
                     <div style={cardTitleRowSty}>
                         <span style={cardTitleSty}>최근 활동</span>
                         <span style={cardMetaSty}>
-                            최근 {Math.min(rows.length, 10)}건 (총 {rows.length}
-                            건)
+                            최근 {Math.min(viewRows.length, 10)}건 (총{" "}
+                            {viewRows.length}건)
                         </span>
                     </div>
-                    {rows.length === 0 ? (
+                    {viewRows.length === 0 ? (
                         <div style={emptySty}>
                             선택한 기간에 활동 기록이 없습니다
                         </div>
@@ -434,7 +483,7 @@ export default function MissionDashboard({
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.slice(0, 10).map((r) => {
+                                {viewRows.slice(0, 10).map((r) => {
                                     const mission = MISSIONS.find(
                                         (m) => m.id === r.challenge_id
                                     )
@@ -653,6 +702,35 @@ const twoColSty: React.CSSProperties = {
     gridTemplateColumns: "1fr 1fr",
     gap: 12,
     alignItems: "stretch",
+}
+const oneColSty: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: 12,
+}
+const tabBarSty: React.CSSProperties = {
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+}
+const tabBtnSty: React.CSSProperties = {
+    border: "none",
+    borderRadius: 100,
+    padding: "8px 16px",
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: FONT,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    boxShadow: "0 1px 3px rgba(25,31,40,0.05), 0 1px 2px rgba(25,31,40,0.03)",
+}
+const tabMiniBadgeSty: React.CSSProperties = {
+    fontSize: 10,
+    fontWeight: 700,
+    padding: "1px 7px",
+    borderRadius: 100,
 }
 const cardSty: React.CSSProperties = {
     background: T.cBg,
