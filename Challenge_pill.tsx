@@ -46,7 +46,17 @@ const FONT =
     "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
 
 /* ═══════════════════════════════════════════
-   Embedded CSS
+   Sheet motion (덜컹 방지: React state + transition)
+   ═══════════════════════════════════════════ */
+const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)"
+const SHEET_DUR = 360 // ms
+const FADE_DUR = 200 // ms
+const TRANS_BOTTOM = `transform ${SHEET_DUR}ms ${EASE_OUT}, opacity ${FADE_DUR}ms ease`
+const TRANS_CENTER = `transform ${SHEET_DUR - 80}ms ${EASE_OUT}, opacity ${FADE_DUR}ms ease`
+const TRANS_OVERLAY = `opacity ${FADE_DUR}ms ease`
+
+/* ═══════════════════════════════════════════
+   Embedded CSS (애니메이션 모두 제거 — inline transition으로 대체)
    ═══════════════════════════════════════════ */
 const CSS = `
   .vc *, .vc *::before, .vc *::after {
@@ -74,31 +84,6 @@ const CSS = `
     0% { transform: scale(0.6); }
     60% { transform: scale(1.15); }
     100% { transform: scale(1); }
-  }
-
-  .vc-overlay {
-    opacity: 0;
-    animation: vc-fade-in 0.2s ease forwards;
-  }
-  @keyframes vc-fade-in { to { opacity: 1; } }
-
-  .vc-sheet-bottom {
-    transform: translateY(100%);
-    will-change: transform;
-    animation: vc-slide-up 0.34s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-  @keyframes vc-slide-up {
-    to { transform: translateY(0); }
-  }
-
-  .vc-sheet-center {
-    opacity: 0;
-    transform: scale(0.94);
-    will-change: transform, opacity;
-    animation: vc-pop-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-  @keyframes vc-pop-in {
-    to { opacity: 1; transform: scale(1); }
   }
 
   .vc-cta:active:not(:disabled),
@@ -202,6 +187,8 @@ export default function VitaminChallenge({
     const [newName, setNewName] = useState("")
     const [newDose, setNewDose] = useState("")
     const [newTime, setNewTime] = useState("")
+    // 시트 등장/사라짐 — popup이 켜진 다음 frame에 true로 토글
+    const [sheetReady, setSheetReady] = useState(false)
 
     /* ─── Preview state sync ─── */
     useEffect(() => {
@@ -269,6 +256,22 @@ export default function VitaminChallenge({
                 setClaimed(false)
         }
     }, [previewState])
+
+    /* ─── Sheet enter/exit motion ─── */
+    useEffect(() => {
+        if (popup === null) {
+            setSheetReady(false)
+            return
+        }
+        // popup이 켜지면 즉시 ready=false (시작점 강제)
+        setSheetReady(false)
+        // 다음 paint frame에 ready=true → transition 트리거
+        const id = requestAnimationFrame(() => {
+            // double rAF로 first paint 이후 보장
+            requestAnimationFrame(() => setSheetReady(true))
+        })
+        return () => cancelAnimationFrame(id)
+    }, [popup])
 
     /* ─── Derived ─── */
     const total = vitamins.length
@@ -367,6 +370,24 @@ export default function VitaminChallenge({
                 {total - takenCount}개 남았어요
             </button>
         )
+    }
+
+    /* ─── Sheet inline motion styles ─── */
+    const overlayMotionSty: React.CSSProperties = {
+        opacity: sheetReady ? 1 : 0,
+        transition: TRANS_OVERLAY,
+    }
+    const sheetBottomMotionSty: React.CSSProperties = {
+        transform: sheetReady ? "translateY(0)" : "translateY(100%)",
+        opacity: sheetReady ? 1 : 0,
+        transition: TRANS_BOTTOM,
+        willChange: "transform, opacity",
+    }
+    const sheetCenterMotionSty: React.CSSProperties = {
+        transform: sheetReady ? "scale(1)" : "scale(0.94)",
+        opacity: sheetReady ? 1 : 0,
+        transition: TRANS_CENTER,
+        willChange: "transform, opacity",
     }
 
     return (
@@ -544,13 +565,11 @@ export default function VitaminChallenge({
             {/* ─── Add Modal (bottom sheet) ─── */}
             {popup === "add" && (
                 <div
-                    className="vc-overlay"
-                    style={overlayBottomSty}
+                    style={{ ...overlayBottomSty, ...overlayMotionSty }}
                     onClick={handleClosePopup}
                 >
                     <div
-                        className="vc-sheet-bottom"
-                        style={sheetBottomSty}
+                        style={{ ...sheetBottomSty, ...sheetBottomMotionSty }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div style={sheetHandleSty} />
@@ -642,8 +661,10 @@ export default function VitaminChallenge({
 
             {/* ─── Reward Popup ─── */}
             {popup === "reward" && (
-                <div className="vc-overlay" style={overlayCenterSty}>
-                    <div className="vc-sheet-center" style={sheetCenterSty}>
+                <div style={{ ...overlayCenterSty, ...overlayMotionSty }}>
+                    <div
+                        style={{ ...sheetCenterSty, ...sheetCenterMotionSty }}
+                    >
                         <div style={scoreEmojiSty}>🎉</div>
                         <div style={mTitleSty}>잘 챙기셨어요!</div>
                         <div style={mSubSty}>내일도 잊지 말고 챙겨요</div>
