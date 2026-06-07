@@ -473,7 +473,7 @@ export default function WaterChallenge({
     } else if (cooldownLeft > 0) {
         showQuickChips = true
         mainCta = (
-            <button disabled style={ctaSoftSty} className="wc-cta">
+            <button disabled style={ctaCooldownSty} className="wc-cta">
                 다음 물 등록까지 {cooldownLeft}초
             </button>
         )
@@ -854,6 +854,13 @@ const ctaSoftSty: React.CSSProperties = {
     ...ctaBaseSty,
     background: T.cDivider,
     color: T.cText,
+    cursor: "default",
+}
+const ctaCooldownSty: React.CSSProperties = {
+    ...ctaBaseSty,
+    background: T.cDivider,
+    color: T.cText3,
+    fontWeight: T.wLabel,
     cursor: "default",
 }
 const chipSty: React.CSSProperties = {
