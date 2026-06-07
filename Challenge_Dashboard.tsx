@@ -1,7 +1,6 @@
 // Challenge_Dashboard.tsx — 외부 일일미션 대시보드 (Framer 컴포넌트)
-// 영단어/영양제/물 3개 일일미션의 참여/학습/통과/적립 현황 + 백엔드 전달용 API 명세
-// 데이터: focuscoin Supabase (challenge_progress, challenge_config, words)
-// 명세 출처: CLIENT_DEV_HANDOVER.md / SERVER_DEV_HANDOVER.md
+// 영단어/영양제/물 3개 일일미션의 참여/학습/통과/적립 현황
+// 데이터: focuscoin Supabase (challenge_progress, challenge_config)
 
 import React, { useState, useEffect } from "react"
 import { addPropertyControls, ControlType } from "framer"
@@ -13,37 +12,23 @@ const SUPA_URL_DEFAULT = "https://gjnwriqewsrwpbtxqbea.supabase.co"
 const SUPA_KEY_DEFAULT =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqbndyaXFld3Nyd3BidHhxYmVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzOTIzNjQsImV4cCI6MjA5NTk2ODM2NH0.XAcRHkdHh8WmwhJgYht__CPmopQadvWVR3h7c8uFswU"
 
-/* ═══════════════════════════════════════════
-   플래닛 보상 API (SERVER_DEV_HANDOVER 명세)
-   ═══════════════════════════════════════════ */
-const MISSION_API_PROD =
-    "https://api.planit-study.com/v1/external-api/mission-completed"
-const MISSION_API_DEV =
-    "https://dev-api.planit-study.com/v1/external-api/mission-completed"
-
 const MISSIONS = [
     {
         id: "english",
         label: "영단어 챌린지",
         emoji: "📖",
-        type: "DAILY_ENGLISH_QUIZ",
-        condition: "5개 단어 학습 + 5문제 중 3문제 이상 정답",
         linked: true,
     },
     {
         id: "pill",
         label: "영양제 챙기기",
         emoji: "💊",
-        type: "DAILY_VITAMIN_CHECK",
-        condition: "등록한 영양제 모두 체크",
         linked: false,
     },
     {
         id: "water",
         label: "물 마시기",
         emoji: "💧",
-        type: "DAILY_WATER_CUPS",
-        condition: "하루 8잔 마시기",
         linked: false,
     },
 ]
@@ -62,23 +47,23 @@ function kstDaysAgo(n: number): string {
    ═══════════════════════════════════════════ */
 const T = {
     rBtn: 12,
-    rCard: 16,
+    rCard: 18,
     rPill: 100,
     tXs: 11,
     tSm: 13,
     tMd: 14,
     tLg: 16,
     tXl: 20,
-    t2xl: 28,
-    t3xl: 36,
+    t2xl: 26,
+    t3xl: 38,
     wBody: 500,
     wLabel: 600,
     wBold: 700,
     cBg: "#FFFFFF",
-    cPage: "#F7F8FA",
+    cPage: "#F6F7F9",
     cCard: "#F8F9FA",
     cDivider: "#F2F4F6",
-    cBorder: "#ECEEF0",
+    cBorder: "#EEF0F3",
     cText: "#191F28",
     cText2: "#6B7684",
     cText3: "#9AA0A8",
@@ -86,14 +71,11 @@ const T = {
     cGreen: "#06C167",
     cGreenBg: "#E6F9F0",
     cGreenDk: "#048A4A",
-    cRed: "#EF4444",
-    cRedBg: "#FEF2F2",
-    cRedDk: "#B91C1C",
-    cWarn: "#F59E0B",
-    cWarnBg: "#FEF3E2",
     cInfo: "#3DADFF",
     cInfoBg: "#EAF5FF",
-    cCode: "#1E293B",
+    cWarn: "#F59E0B",
+    cWarnBg: "#FEF3E2",
+    shadow: "0 1px 3px rgba(25,31,40,0.05), 0 1px 2px rgba(25,31,40,0.03)",
 }
 
 const FONT =
@@ -104,7 +86,9 @@ const CSS = `
   .fcd *, .fcd *::before, .fcd *::after { box-sizing: border-box; }
   .fcd-body::-webkit-scrollbar { width: 8px; }
   .fcd-body::-webkit-scrollbar-thumb { background: ${T.cBorder}; border-radius: 100px; }
-  .fcd-btn:active { transform: scale(0.97); }
+  .fcd-btn { transition: all 0.15s ease; }
+  .fcd-btn:active { transform: scale(0.96); }
+  .fcd-btn:hover { opacity: 0.85; }
   .fcd-loading-dot { animation: fcd-dot-pulse 1.2s ease-in-out infinite; }
   .fcd-loading-dot:nth-child(2) { animation-delay: 0.15s; }
   .fcd-loading-dot:nth-child(3) { animation-delay: 0.3s; }
@@ -144,15 +128,10 @@ export default function MissionDashboard({
 }) {
     const [rows, setRows] = useState<ProgressRow[]>([])
     const [configs, setConfigs] = useState<any[]>([])
-    const [wordCount, setWordCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(false)
     const [period, setPeriod] = useState<Period>("7d")
     const [refreshKey, setRefreshKey] = useState(0)
-    const [apiStatus, setApiStatus] = useState<Record<string, string>>({
-        dev: "",
-        prod: "",
-    })
 
     /* ─── 데이터 로드 ─── */
     useEffect(() => {
@@ -180,18 +159,11 @@ export default function MissionDashboard({
                 `${supabaseUrl}/rest/v1/focuscoin_challenge_config?select=*`,
                 { headers: h }
             ).then((r) => r.json()),
-            fetch(`${supabaseUrl}/rest/v1/focuscoin_words?select=id`, {
-                headers: { ...h, Prefer: "count=exact", Range: "0-0" },
-            }).then((r) => {
-                const cr = r.headers.get("content-range")
-                return cr ? parseInt(cr.split("/")[1] || "0", 10) : 0
-            }),
         ])
-            .then(([progRows, cfgRows, wc]) => {
+            .then(([progRows, cfgRows]) => {
                 if (cancelled) return
                 if (Array.isArray(progRows)) setRows(progRows)
                 if (Array.isArray(cfgRows)) setConfigs(cfgRows)
-                if (typeof wc === "number") setWordCount(wc)
                 setLoading(false)
             })
             .catch(() => {
@@ -204,35 +176,6 @@ export default function MissionDashboard({
             cancelled = true
         }
     }, [supabaseUrl, supabaseKey, period, refreshKey])
-
-    /* ─── 서버 상태 체크 (백엔드 연동 확인용) ─── */
-    const checkServer = (env: "dev" | "prod") => {
-        setApiStatus((p) => ({ ...p, [env]: "checking" }))
-        const url = env === "dev" ? MISSION_API_DEV : MISSION_API_PROD
-        fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                userId: "dashboard-health-check",
-                type: "DAILY_ENGLISH_QUIZ",
-            }),
-        })
-            .then((r) => {
-                let msg = `HTTP ${r.status}`
-                if (r.status === 204) msg = "정상 (204 적립 응답)"
-                else if (r.status === 409) msg = "정상 (409 중복 응답)"
-                else if (r.status === 401) msg = "401 인증 거부 (엔드포인트 확인 필요)"
-                else if (r.status === 404) msg = "404 경로 없음"
-                else if (r.status >= 500) msg = `${r.status} 서버 오류`
-                setApiStatus((p) => ({ ...p, [env]: msg }))
-            })
-            .catch(() => {
-                setApiStatus((p) => ({
-                    ...p,
-                    [env]: "연결 차단 (CORS 미허용 또는 서버 미구현)",
-                }))
-            })
-    }
 
     /* ─── 집계 ─── */
     const agg = (list: ProgressRow[]) => {
@@ -292,13 +235,7 @@ export default function MissionDashboard({
             <div className="fcd-body" style={bodySty}>
                 {/* ─── Header ─── */}
                 <div style={hdrSty}>
-                    <div>
-                        <h1 style={hdrTitleSty}>외부 일일미션 대시보드</h1>
-                        <p style={hdrSubSty}>
-                            영단어, 영양제, 물 마시기 3개 미션의 참여 현황과
-                            플래닛 API 연동 상태
-                        </p>
-                    </div>
+                    <h1 style={hdrTitleSty}>외부 일일미션 대시보드</h1>
                     <div style={hdrRightSty}>
                         <div style={periodGroupSty}>
                             {(["today", "7d", "30d", "all"] as Period[]).map(
@@ -343,18 +280,21 @@ export default function MissionDashboard({
                 {/* ─── KPI Cards ─── */}
                 <div style={kpiGridSty}>
                     <div style={kpiCardSty}>
-                        <div style={kpiLabelSty}>참여 ({periodLabel[period]})</div>
+                        <div style={kpiIconSty}>🙋</div>
+                        <div style={kpiLabelSty}>참여</div>
                         <div style={kpiNumSty}>{total.participated}</div>
                         <div style={kpiMetaSty}>
                             고유 사용자 {total.uniqueUsers}명
                         </div>
                     </div>
                     <div style={kpiCardSty}>
+                        <div style={kpiIconSty}>✏️</div>
                         <div style={kpiLabelSty}>학습 완료</div>
                         <div style={kpiNumSty}>{total.studiedDone}</div>
                         <div style={kpiMetaSty}>5개 단어 모두 학습</div>
                     </div>
                     <div style={kpiCardSty}>
+                        <div style={kpiIconSty}>🎯</div>
                         <div style={kpiLabelSty}>테스트 통과</div>
                         <div style={{ ...kpiNumSty, color: T.cGreen }}>
                             {total.passed}
@@ -362,6 +302,7 @@ export default function MissionDashboard({
                         <div style={kpiMetaSty}>통과율 {passRate}%</div>
                     </div>
                     <div style={kpiCardSty}>
+                        <div style={kpiIconSty}>💰</div>
                         <div style={kpiLabelSty}>보상 적립</div>
                         <div style={{ ...kpiNumSty, color: T.cGreenDk }}>
                             {total.claimed}
@@ -375,7 +316,7 @@ export default function MissionDashboard({
                     <div style={cardTitleSty}>완료 퍼널</div>
                     <div style={funnelWrapSty}>
                         {[
-                            { label: "참여", n: total.participated, c: T.cText2 },
+                            { label: "참여", n: total.participated, c: "#B0B8C1" },
                             { label: "학습 완료", n: total.studiedDone, c: T.cInfo },
                             { label: "테스트 통과", n: total.passed, c: T.cGreen },
                             { label: "보상 적립", n: total.claimed, c: T.cGreenDk },
@@ -425,11 +366,9 @@ export default function MissionDashboard({
                                                 : unlinkedBadgeSty
                                         }
                                     >
-                                        {m.linked ? "DB 연동됨" : "연동 전"}
+                                        {m.linked ? "운영 중" : "준비 중"}
                                     </span>
                                 </div>
-                                <div style={missionTypeSty}>{m.type}</div>
-                                <div style={missionCondSty}>{m.condition}</div>
                                 <div style={missionStatsSty}>
                                     <div style={missionStatSty}>
                                         <div style={missionStatNumSty}>
@@ -479,8 +418,8 @@ export default function MissionDashboard({
                     <div style={cardTitleRowSty}>
                         <span style={cardTitleSty}>최근 활동</span>
                         <span style={cardMetaSty}>
-                            최근 {Math.min(rows.length, 15)}건 표시 (총{" "}
-                            {rows.length}건)
+                            최근 {Math.min(rows.length, 15)}건 (총 {rows.length}
+                            건)
                         </span>
                     </div>
                     {rows.length === 0 ? (
@@ -587,193 +526,6 @@ export default function MissionDashboard({
                         </table>
                     )}
                 </div>
-
-                {/* ─── API 연동 (백엔드 전달용) ─── */}
-                <div style={cardSty}>
-                    <div style={cardTitleRowSty}>
-                        <span style={cardTitleSty}>
-                            🔌 플래닛 보상 API 연동 (백엔드 전달용)
-                        </span>
-                        <span style={cardMetaSty}>
-                            SERVER_DEV_HANDOVER 명세 기준
-                        </span>
-                    </div>
-
-                    {/* 서버 상태 체크 */}
-                    <div style={apiCheckRowSty}>
-                        {(["dev", "prod"] as const).map((env) => (
-                            <div key={env} style={apiCheckItemSty}>
-                                <div style={apiCheckHeadSty}>
-                                    <span style={apiEnvLabelSty}>
-                                        {env === "dev" ? "개발 서버" : "운영 서버"}
-                                    </span>
-                                    <button
-                                        className="fcd-btn"
-                                        style={apiCheckBtnSty}
-                                        onClick={() => checkServer(env)}
-                                    >
-                                        상태 확인
-                                    </button>
-                                </div>
-                                <div style={apiUrlSty}>
-                                    {env === "dev"
-                                        ? MISSION_API_DEV
-                                        : MISSION_API_PROD}
-                                </div>
-                                <div
-                                    style={{
-                                        ...apiStatusSty,
-                                        color:
-                                            apiStatus[env] === "checking"
-                                                ? T.cText3
-                                                : apiStatus[env].startsWith(
-                                                        "정상"
-                                                    )
-                                                  ? T.cGreenDk
-                                                  : apiStatus[env]
-                                                    ? T.cRedDk
-                                                    : T.cText3,
-                                        background:
-                                            apiStatus[env] === "checking"
-                                                ? T.cDivider
-                                                : apiStatus[env].startsWith(
-                                                        "정상"
-                                                    )
-                                                  ? T.cGreenBg
-                                                  : apiStatus[env]
-                                                    ? T.cRedBg
-                                                    : T.cDivider,
-                                    }}
-                                >
-                                    {apiStatus[env] === "checking"
-                                        ? "확인 중..."
-                                        : apiStatus[env] ||
-                                          "버튼을 눌러 확인하세요"}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* 명세 요약 */}
-                    <div style={specGridSty}>
-                        <div style={specBlockSty}>
-                            <div style={specTitleSty}>Request</div>
-                            <pre style={codeSty}>{`POST /v1/external-api/mission-completed
-Content-Type: application/json
-
-{
-  "userId": "string",   // WebView URL 파라미터에서 전달
-  "type": "string"      // 아래 미션 타입 표 참고
-}`}</pre>
-                        </div>
-                        <div style={specBlockSty}>
-                            <div style={specTitleSty}>
-                                Response (HTTP Status만 사용, Body 없음)
-                            </div>
-                            <table style={specTableSty}>
-                                <tbody>
-                                    <tr>
-                                        <td style={specTdCodeSty}>204</td>
-                                        <td style={specTdSty}>
-                                            정상 적립 완료 → 🎉 캐시 적립 팝업
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={specTdCodeSty}>409</td>
-                                        <td style={specTdSty}>
-                                            이미 오늘 받음 → ✅ 이미 받은 보상
-                                            팝업
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style={specTdCodeSty}>500</td>
-                                        <td style={specTdSty}>
-                                            서버 오류 → ⚠️ 일시적인 오류 +
-                                            다시 시도
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <div style={specBlockSty}>
-                        <div style={specTitleSty}>미션 타입</div>
-                        <table style={specTableSty}>
-                            <tbody>
-                                {MISSIONS.map((m) => (
-                                    <tr key={m.id}>
-                                        <td style={specTdCodeSty}>{m.type}</td>
-                                        <td style={specTdSty}>
-                                            {m.label} — {m.condition}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* 백엔드 체크리스트 */}
-                    <div style={specBlockSty}>
-                        <div style={specTitleSty}>
-                            백엔드 구현 체크리스트 (필수)
-                        </div>
-                        <ul style={checklistSty}>
-                            <li style={checklistItemSty}>
-                                중복 적립 방지 — 동일 userId + type + 일자(KST)
-                                두 번째 호출은 409 (DB UNIQUE 제약 권장)
-                            </li>
-                            <li style={checklistItemSty}>
-                                캐시 적립 +10, 적립 기록과 잔액 갱신은 같은
-                                트랜잭션
-                            </li>
-                            <li style={checklistItemSty}>
-                                KST 기준 자정 리셋 (00:00 KST)
-                            </li>
-                            <li style={checklistItemSty}>
-                                CORS — focuscoin.app 도메인 허용 (현재 미허용
-                                상태, 위 상태 확인 버튼으로 검증 가능)
-                            </li>
-                            <li style={checklistItemSty}>
-                                호출 로그 (userId, type, 시각, 응답 코드) +
-                                Rate Limit 권장
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                {/* ─── 인프라 정보 ─── */}
-                <div style={cardSty}>
-                    <div style={cardTitleSty}>인프라 현황</div>
-                    <div style={infraGridSty}>
-                        <div style={infraItemSty}>
-                            <span style={infraLabelSty}>단어 풀</span>
-                            <span style={infraValueSty}>
-                                {wordCount.toLocaleString()}개 (매일 5개 자동
-                                출제)
-                            </span>
-                        </div>
-                        <div style={infraItemSty}>
-                            <span style={infraLabelSty}>진행 기록 DB</span>
-                            <span style={infraValueSty}>
-                                Supabase focuscoin_challenge_progress
-                            </span>
-                        </div>
-                        <div style={infraItemSty}>
-                            <span style={infraLabelSty}>보상 설정</span>
-                            <span style={infraValueSty}>
-                                focuscoin_challenge_config (캐시 금액, 통과
-                                기준, 광고 시간)
-                            </span>
-                        </div>
-                        <div style={infraItemSty}>
-                            <span style={infraLabelSty}>WebView URL 형식</span>
-                            <span style={{ ...infraValueSty, fontFamily: MONO }}>
-                                /challenge_english?userId=&#123;USER_ID&#125;&env=&#123;prod|dev&#125;
-                            </span>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     )
@@ -810,32 +562,27 @@ const loadingDotSty: React.CSSProperties = {
 const bodySty: React.CSSProperties = {
     flex: 1,
     overflowY: "auto",
-    padding: "28px 36px 48px",
+    padding: "32px 40px 56px",
     display: "flex",
     flexDirection: "column",
-    gap: 16,
-    maxWidth: 1200,
+    gap: 14,
+    maxWidth: 1160,
     margin: "0 auto",
     width: "100%",
 }
 const hdrSty: React.CSSProperties = {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    alignItems: "center",
     gap: 16,
     flexWrap: "wrap",
+    marginBottom: 6,
 }
 const hdrTitleSty: React.CSSProperties = {
     margin: 0,
     fontSize: T.t2xl,
     fontWeight: T.wBold,
-    letterSpacing: -0.5,
-}
-const hdrSubSty: React.CSSProperties = {
-    margin: "6px 0 0",
-    fontSize: T.tMd,
-    color: T.cText2,
-    fontWeight: T.wBody,
+    letterSpacing: -0.6,
 }
 const hdrRightSty: React.CSSProperties = {
     display: "flex",
@@ -845,10 +592,10 @@ const hdrRightSty: React.CSSProperties = {
 const periodGroupSty: React.CSSProperties = {
     display: "flex",
     background: T.cBg,
-    border: `1px solid ${T.cBorder}`,
     borderRadius: T.rBtn,
     padding: 3,
     gap: 2,
+    boxShadow: T.shadow,
 }
 const periodBtnSty: React.CSSProperties = {
     border: "none",
@@ -858,22 +605,22 @@ const periodBtnSty: React.CSSProperties = {
     fontWeight: T.wLabel,
     fontFamily: FONT,
     cursor: "pointer",
-    transition: "all 0.15s",
 }
 const refreshBtnSty: React.CSSProperties = {
-    border: `1px solid ${T.cBorder}`,
+    border: "none",
     background: T.cBg,
     borderRadius: T.rBtn,
-    padding: "9px 16px",
+    padding: "10px 16px",
     fontSize: T.tSm,
     fontWeight: T.wLabel,
     fontFamily: FONT,
     color: T.cText,
     cursor: "pointer",
+    boxShadow: T.shadow,
 }
 const errorBannerSty: React.CSSProperties = {
-    background: T.cRedBg,
-    color: T.cRedDk,
+    background: "#FEF2F2",
+    color: "#B91C1C",
     borderRadius: T.rBtn,
     padding: "12px 16px",
     fontSize: T.tSm,
@@ -882,38 +629,43 @@ const errorBannerSty: React.CSSProperties = {
 const kpiGridSty: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 12,
+    gap: 14,
 }
 const kpiCardSty: React.CSSProperties = {
     background: T.cBg,
-    border: `1px solid ${T.cBorder}`,
     borderRadius: T.rCard,
-    padding: "18px 20px",
+    padding: "20px 22px",
+    boxShadow: T.shadow,
+}
+const kpiIconSty: React.CSSProperties = {
+    fontSize: 22,
+    marginBottom: 12,
+    lineHeight: 1,
 }
 const kpiLabelSty: React.CSSProperties = {
     fontSize: T.tSm,
     color: T.cText2,
     fontWeight: T.wLabel,
-    marginBottom: 10,
+    marginBottom: 8,
 }
 const kpiNumSty: React.CSSProperties = {
     fontSize: T.t3xl,
     fontWeight: T.wBold,
-    letterSpacing: -1,
+    letterSpacing: -1.2,
     lineHeight: 1,
     color: T.cText,
 }
 const kpiMetaSty: React.CSSProperties = {
     fontSize: T.tXs,
     color: T.cText3,
-    marginTop: 8,
+    marginTop: 9,
     fontWeight: T.wBody,
 }
 const cardSty: React.CSSProperties = {
     background: T.cBg,
-    border: `1px solid ${T.cBorder}`,
     borderRadius: T.rCard,
-    padding: "20px 22px",
+    padding: "22px 24px",
+    boxShadow: T.shadow,
 }
 const cardTitleSty: React.CSSProperties = {
     fontSize: T.tLg,
@@ -934,16 +686,16 @@ const cardMetaSty: React.CSSProperties = {
 const funnelWrapSty: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
-    gap: 10,
-    marginTop: 14,
+    gap: 12,
+    marginTop: 16,
 }
 const funnelRowSty: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
 }
 const funnelLabelSty: React.CSSProperties = {
-    width: 90,
+    width: 88,
     fontSize: T.tSm,
     color: T.cText2,
     fontWeight: T.wLabel,
@@ -951,33 +703,33 @@ const funnelLabelSty: React.CSSProperties = {
 }
 const funnelBarBgSty: React.CSSProperties = {
     flex: 1,
-    height: 22,
+    height: 26,
     background: T.cDivider,
-    borderRadius: 6,
+    borderRadius: 8,
     overflow: "hidden",
 }
 const funnelBarSty: React.CSSProperties = {
     height: "100%",
-    borderRadius: 6,
+    borderRadius: 8,
     transition: "width 0.5s ease",
 }
 const funnelNumSty: React.CSSProperties = {
-    width: 40,
+    width: 42,
     textAlign: "right",
-    fontSize: T.tSm,
+    fontSize: T.tMd,
     fontWeight: T.wBold,
     flexShrink: 0,
 }
 const missionGridSty: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
-    gap: 12,
+    gap: 14,
 }
 const missionHeadSty: React.CSSProperties = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 16,
 }
 const missionTitleSty: React.CSSProperties = {
     fontSize: T.tLg,
@@ -987,7 +739,7 @@ const missionTitleSty: React.CSSProperties = {
 const linkedBadgeSty: React.CSSProperties = {
     fontSize: T.tXs,
     fontWeight: T.wBold,
-    padding: "3px 9px",
+    padding: "4px 10px",
     borderRadius: T.rPill,
     background: T.cGreenBg,
     color: T.cGreenDk,
@@ -995,22 +747,10 @@ const linkedBadgeSty: React.CSSProperties = {
 const unlinkedBadgeSty: React.CSSProperties = {
     fontSize: T.tXs,
     fontWeight: T.wBold,
-    padding: "3px 9px",
+    padding: "4px 10px",
     borderRadius: T.rPill,
     background: T.cWarnBg,
     color: T.cWarn,
-}
-const missionTypeSty: React.CSSProperties = {
-    fontSize: T.tXs,
-    fontFamily: MONO,
-    color: T.cText3,
-    marginBottom: 4,
-}
-const missionCondSty: React.CSSProperties = {
-    fontSize: T.tSm,
-    color: T.cText2,
-    fontWeight: T.wBody,
-    marginBottom: 14,
 }
 const missionStatsSty: React.CSSProperties = {
     display: "grid",
@@ -1018,7 +758,7 @@ const missionStatsSty: React.CSSProperties = {
     gap: 6,
     background: T.cCard,
     borderRadius: T.rBtn,
-    padding: "12px 8px",
+    padding: "14px 8px",
 }
 const missionStatSty: React.CSSProperties = { textAlign: "center" }
 const missionStatNumSty: React.CSSProperties = {
@@ -1029,11 +769,11 @@ const missionStatNumSty: React.CSSProperties = {
 const missionStatLabelSty: React.CSSProperties = {
     fontSize: T.tXs,
     color: T.cText3,
-    marginTop: 3,
+    marginTop: 4,
     fontWeight: T.wBody,
 }
 const emptySty: React.CSSProperties = {
-    padding: "32px 0",
+    padding: "36px 0",
     textAlign: "center",
     fontSize: T.tSm,
     color: T.cText3,
@@ -1054,7 +794,7 @@ const thSty: React.CSSProperties = {
     whiteSpace: "nowrap",
 }
 const tdSty: React.CSSProperties = {
-    padding: "10px 10px",
+    padding: "11px 10px",
     borderBottom: `1px solid ${T.cDivider}`,
     color: T.cText,
     fontWeight: T.wBody,
@@ -1068,7 +808,7 @@ const tdMonoSty: React.CSSProperties = {
 const userBadgeSty: React.CSSProperties = {
     fontSize: T.tXs,
     fontWeight: T.wBold,
-    padding: "2px 7px",
+    padding: "2px 8px",
     borderRadius: T.rPill,
     background: T.cInfoBg,
     color: T.cInfo,
@@ -1076,7 +816,7 @@ const userBadgeSty: React.CSSProperties = {
 const deviceBadgeSty: React.CSSProperties = {
     fontSize: T.tXs,
     fontWeight: T.wBold,
-    padding: "2px 7px",
+    padding: "2px 8px",
     borderRadius: T.rPill,
     background: T.cDivider,
     color: T.cText3,
@@ -1084,7 +824,7 @@ const deviceBadgeSty: React.CSSProperties = {
 const okBadgeSty: React.CSSProperties = {
     fontSize: T.tXs,
     fontWeight: T.wBold,
-    padding: "3px 9px",
+    padding: "3px 10px",
     borderRadius: T.rPill,
     background: T.cGreenBg,
     color: T.cGreenDk,
@@ -1092,143 +832,10 @@ const okBadgeSty: React.CSSProperties = {
 const grayBadgeSty: React.CSSProperties = {
     fontSize: T.tXs,
     fontWeight: T.wBold,
-    padding: "3px 9px",
+    padding: "3px 10px",
     borderRadius: T.rPill,
     background: T.cDivider,
     color: T.cText4,
-}
-const apiCheckRowSty: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-    marginBottom: 16,
-}
-const apiCheckItemSty: React.CSSProperties = {
-    background: T.cCard,
-    borderRadius: T.rBtn,
-    padding: "14px 16px",
-}
-const apiCheckHeadSty: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-}
-const apiEnvLabelSty: React.CSSProperties = {
-    fontSize: T.tSm,
-    fontWeight: T.wBold,
-}
-const apiCheckBtnSty: React.CSSProperties = {
-    border: "none",
-    background: T.cText,
-    color: "#FFF",
-    borderRadius: 8,
-    padding: "6px 12px",
-    fontSize: T.tXs,
-    fontWeight: T.wBold,
-    fontFamily: FONT,
-    cursor: "pointer",
-}
-const apiUrlSty: React.CSSProperties = {
-    fontFamily: MONO,
-    fontSize: T.tXs,
-    color: T.cText2,
-    marginBottom: 8,
-    wordBreak: "break-all",
-}
-const apiStatusSty: React.CSSProperties = {
-    fontSize: T.tSm,
-    fontWeight: T.wBold,
-    padding: "8px 12px",
-    borderRadius: 8,
-}
-const specGridSty: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-    marginBottom: 12,
-}
-const specBlockSty: React.CSSProperties = {
-    background: T.cCard,
-    borderRadius: T.rBtn,
-    padding: "14px 16px",
-    marginBottom: 12,
-}
-const specTitleSty: React.CSSProperties = {
-    fontSize: T.tSm,
-    fontWeight: T.wBold,
-    marginBottom: 10,
-}
-const codeSty: React.CSSProperties = {
-    margin: 0,
-    fontFamily: MONO,
-    fontSize: 12,
-    lineHeight: 1.6,
-    background: T.cCode,
-    color: "#E2E8F0",
-    borderRadius: 8,
-    padding: "12px 14px",
-    overflowX: "auto",
-}
-const specTableSty: React.CSSProperties = {
-    width: "100%",
-    borderCollapse: "collapse",
-}
-const specTdCodeSty: React.CSSProperties = {
-    fontFamily: MONO,
-    fontSize: T.tXs,
-    fontWeight: T.wBold,
-    color: T.cText,
-    padding: "7px 10px 7px 0",
-    borderBottom: `1px solid ${T.cDivider}`,
-    whiteSpace: "nowrap",
-    verticalAlign: "top",
-}
-const specTdSty: React.CSSProperties = {
-    fontSize: T.tSm,
-    color: T.cText2,
-    padding: "7px 0",
-    borderBottom: `1px solid ${T.cDivider}`,
-    fontWeight: T.wBody,
-}
-const checklistSty: React.CSSProperties = {
-    margin: 0,
-    paddingLeft: 18,
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-}
-const checklistItemSty: React.CSSProperties = {
-    fontSize: T.tSm,
-    color: T.cText2,
-    fontWeight: T.wBody,
-    lineHeight: 1.5,
-}
-const infraGridSty: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    gap: 0,
-    marginTop: 12,
-}
-const infraItemSty: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 16,
-    padding: "10px 0",
-    borderBottom: `1px solid ${T.cDivider}`,
-}
-const infraLabelSty: React.CSSProperties = {
-    fontSize: T.tSm,
-    color: T.cText2,
-    fontWeight: T.wLabel,
-    flexShrink: 0,
-}
-const infraValueSty: React.CSSProperties = {
-    fontSize: T.tSm,
-    color: T.cText,
-    fontWeight: T.wBody,
-    textAlign: "right",
 }
 
 /* ═══════════════════════════════════════════
