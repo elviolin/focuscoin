@@ -88,7 +88,7 @@ const FONT =
    Sheet motion (덜컹 방지: React state + transition)
    ═══════════════════════════════════════════ */
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)"
-const SHEET_DUR = 360 // ms
+const SHEET_DUR = 280 // ms (v3: 360 → 280, 반응 빠름)
 const FADE_DUR = 200 // ms
 const TRANS_BOTTOM = `transform ${SHEET_DUR}ms ${EASE_OUT}, opacity ${FADE_DUR}ms ease`
 const TRANS_CENTER = `transform ${SHEET_DUR - 80}ms ${EASE_OUT}, opacity ${FADE_DUR}ms ease`
@@ -518,14 +518,16 @@ export default function VitaminChallenge({
         opacity: sheetReady ? 1 : 0,
         transition: TRANS_OVERLAY,
     }
+    // v3: slide 크기 크게 줄임 (100% → 40px) + scale 미세 (0.94 → 0.97)
+    // mount 1 frame 깜빡 보여도 시각적으로 거의 안 보이게
     const sheetBottomMotionSty: React.CSSProperties = {
-        transform: sheetReady ? "translateY(0)" : "translateY(100%)",
+        transform: sheetReady ? "translateY(0)" : "translateY(40px)",
         opacity: sheetReady ? 1 : 0,
         transition: TRANS_BOTTOM,
         willChange: "transform, opacity",
     }
     const sheetCenterMotionSty: React.CSSProperties = {
-        transform: sheetReady ? "scale(1)" : "scale(0.94)",
+        transform: sheetReady ? "scale(1)" : "scale(0.97)",
         opacity: sheetReady ? 1 : 0,
         transition: TRANS_CENTER,
         willChange: "transform, opacity",
