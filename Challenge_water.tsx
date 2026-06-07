@@ -146,6 +146,8 @@ export default function WaterChallenge({
     const [adTimer, setAdTimer] = useState(5)
     const [toast, setToast] = useState("")
     const [ready, setReady] = useState(false)
+    const [cooldownLeft, setCooldownLeft] = useState(0)
+    const cdIvRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const adIvRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const lastAddRef = useRef<number>(0)
@@ -166,6 +168,15 @@ export default function WaterChallenge({
                     if (r && r.ok) {
                         setCount(typeof r.cups === "number" ? r.cups : 0)
                         setClaimed(!!r.claimed)
+                        if (
+                            !r.claimed &&
+                            typeof r.cups === "number" &&
+                            r.cups < GOAL &&
+                            typeof r.cooldown_remain_sec === "number" &&
+                            r.cooldown_remain_sec > 0
+                        ) {
+                            startCooldown(r.cooldown_remain_sec)
+                        }
                     }
                     setReady(true)
                 })
@@ -199,6 +210,11 @@ export default function WaterChallenge({
         setPopup(null)
         setToast("")
         lastAddRef.current = 0
+        if (cdIvRef.current) {
+            clearInterval(cdIvRef.current)
+            cdIvRef.current = null
+        }
+        setCooldownLeft(0)
         setAdProgress(0)
         setAdTimer(5)
         switch (previewState) {
@@ -244,6 +260,7 @@ export default function WaterChallenge({
         return () => {
             if (adIvRef.current) clearInterval(adIvRef.current)
             if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+            if (cdIvRef.current) clearInterval(cdIvRef.current)
         }
     }, [])
 
@@ -274,6 +291,27 @@ export default function WaterChallenge({
                 : `다음 물 등록은 ${remain}초 뒤부터 가능해요!`
         )
     }
+    const startCooldown = (sec: number) => {
+        const s = Math.max(0, Math.round(sec))
+        if (cdIvRef.current) {
+            clearInterval(cdIvRef.current)
+            cdIvRef.current = null
+        }
+        setCooldownLeft(s)
+        if (s <= 0) return
+        cdIvRef.current = setInterval(() => {
+            setCooldownLeft((prev) => {
+                if (prev <= 1) {
+                    if (cdIvRef.current) {
+                        clearInterval(cdIvRef.current)
+                        cdIvRef.current = null
+                    }
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+    }
     const notifyParent = () => {
         try {
             const payload = JSON.stringify({
@@ -291,7 +329,7 @@ export default function WaterChallenge({
         } catch {}
     }
     const handleAddCup = (n: number = 1) => {
-        if (claimed || allFull || !ready) return
+        if (claimed || allFull || !ready || cooldownLeft > 0) return
         if (!userIdStr) {
             const now = Date.now()
             if (lastAddRef.current && now - lastAddRef.current < COOLDOWN_MS) {
@@ -299,7 +337,11 @@ export default function WaterChallenge({
                 return
             }
             lastAddRef.current = now
-            setCount((c) => Math.min(c + n, GOAL))
+            setCount((c) => {
+                const next = Math.min(c + n, GOAL)
+                if (next < GOAL) startCooldown(COOLDOWN_MS / 1000)
+                return next
+            })
             return
         }
         if (busyRef.current) return
@@ -307,13 +349,22 @@ export default function WaterChallenge({
         rpc("add_water_cups", { p_user_id: userIdStr, p_cups: n })
             .then((r) => {
                 if (r && r.ok) {
-                    setCount(typeof r.cups === "number" ? r.cups : 0)
+                    const cups = typeof r.cups === "number" ? r.cups : 0
+                    setCount(cups)
+                    if (cups < GOAL) {
+                        startCooldown(
+                            typeof r.cooldown_remain_sec === "number"
+                                ? r.cooldown_remain_sec
+                                : 60
+                        )
+                    }
                 } else if (r && r.error === "cooldown") {
-                    cooldownToast(
+                    const remain =
                         typeof r.cooldown_remain_sec === "number"
                             ? r.cooldown_remain_sec
                             : 60
-                    )
+                    cooldownToast(remain)
+                    startCooldown(remain)
                     if (typeof r.cups === "number") setCount(r.cups)
                 } else if (
                     r &&
@@ -419,6 +470,13 @@ export default function WaterChallenge({
                 </span>
             </button>
         )
+    } else if (cooldownLeft > 0) {
+        showQuickChips = true
+        mainCta = (
+            <button disabled style={ctaSoftSty} className="wc-cta">
+                다음 물 등록까지 {cooldownLeft}초
+            </button>
+        )
     } else {
         showQuickChips = true
         mainCta = (
@@ -482,22 +540,34 @@ export default function WaterChallenge({
                     <div style={quickRowSty}>
                         <button
                             className="wc-quick"
+                            disabled={cooldownLeft > 0}
                             onClick={() => handleAddCup(2)}
-                            style={quickChipSty}
+                            style={{
+                                ...quickChipSty,
+                                ...(cooldownLeft > 0 ? quickChipOffSty : {}),
+                            }}
                         >
                             +2잔
                         </button>
                         <button
                             className="wc-quick"
+                            disabled={cooldownLeft > 0}
                             onClick={() => handleAddCup(3)}
-                            style={quickChipSty}
+                            style={{
+                                ...quickChipSty,
+                                ...(cooldownLeft > 0 ? quickChipOffSty : {}),
+                            }}
                         >
                             +3잔
                         </button>
                         <button
                             className="wc-quick"
+                            disabled={cooldownLeft > 0}
                             onClick={() => handleAddCup(4)}
-                            style={quickChipSty}
+                            style={{
+                                ...quickChipSty,
+                                ...(cooldownLeft > 0 ? quickChipOffSty : {}),
+                            }}
                         >
                             +4잔
                         </button>
@@ -753,6 +823,11 @@ const quickChipSty: React.CSSProperties = {
     fontFamily: FONT,
     letterSpacing: -0.1,
     transition: "background 0.15s, color 0.15s, transform 0.1s",
+}
+const quickChipOffSty: React.CSSProperties = {
+    background: T.cDivider,
+    color: T.cText4,
+    cursor: "default",
 }
 const ctaBaseSty: React.CSSProperties = {
     width: "100%",
