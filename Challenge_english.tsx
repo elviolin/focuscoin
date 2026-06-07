@@ -268,7 +268,15 @@ const ArrowIcon = ({ size = 14 }: { size?: number }) => (
    Helpers
    ═══════════════════════════════════════════ */
 function shuffle<U>(a: U[]): U[] {
-    return [...a].sort(() => Math.random() - 0.5)
+    // Fisher-Yates 셔플 — sort+random 방식은 정답이 첫 번째에 몰리는 편향 발생
+    const arr = [...a]
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        const tmp = arr[i]
+        arr[i] = arr[j]
+        arr[j] = tmp
+    }
+    return arr
 }
 function buildTestQuestions(words: WordItem[]): TestQuestion[] {
     return shuffle(words).map((w) => {
