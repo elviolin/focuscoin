@@ -266,6 +266,14 @@ export default function WaterChallenge({
             })
             .catch(() => {})
     }
+    const cooldownToast = (remainSec: number) => {
+        const remain = Math.max(1, Math.round(remainSec))
+        showToast(
+            remain >= 60
+                ? "다음 물 등록은 1분 뒤부터 가능해요!"
+                : `다음 물 등록은 ${remain}초 뒤부터 가능해요!`
+        )
+    }
     const notifyParent = () => {
         try {
             const payload = JSON.stringify({
@@ -287,7 +295,7 @@ export default function WaterChallenge({
         if (!userIdStr) {
             const now = Date.now()
             if (lastAddRef.current && now - lastAddRef.current < COOLDOWN_MS) {
-                showToast("다음 물 등록은 1분 뒤부터 가능해요!")
+                cooldownToast((COOLDOWN_MS - (now - lastAddRef.current)) / 1000)
                 return
             }
             lastAddRef.current = now
@@ -301,7 +309,11 @@ export default function WaterChallenge({
                 if (r && r.ok) {
                     setCount(typeof r.cups === "number" ? r.cups : 0)
                 } else if (r && r.error === "cooldown") {
-                    showToast("다음 물 등록은 1분 뒤부터 가능해요!")
+                    cooldownToast(
+                        typeof r.cooldown_remain_sec === "number"
+                            ? r.cooldown_remain_sec
+                            : 60
+                    )
                     if (typeof r.cups === "number") setCount(r.cups)
                 } else if (
                     r &&
