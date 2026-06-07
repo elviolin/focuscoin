@@ -574,6 +574,13 @@ export default function EnglishWordChallenge({
         words.length > 0
             ? Math.round((studiedCount / words.length) * 100)
             : 0
+    const statusText = allStudied
+        ? testPassed
+            ? "테스트 통과"
+            : tested
+              ? "재도전"
+              : "테스트 가능"
+        : `${words.length - studiedCount}개 남음`
 
     /* ─── Handlers ─── */
     const handleStudyWord = (w: WordItem) => {
@@ -763,6 +770,13 @@ export default function EnglishWordChallenge({
                 <div style={heroSty}>
                     <div style={heroTopSty}>
                         <span style={heroLabelSty}>오늘의 학습</span>
+                        <span
+                            style={
+                                testPassed ? rewardChipSty : rewardChipDoneSty
+                            }
+                        >
+                            {statusText}
+                        </span>
                     </div>
                     <div style={heroProgressRowSty}>
                         <span style={heroNumSty}>{studiedCount}</span>
@@ -771,17 +785,6 @@ export default function EnglishWordChallenge({
                     </div>
                     <div style={heroBarSty}>
                         <div style={{ ...heroBarFillSty, width: `${pct}%` }} />
-                    </div>
-                    <div style={heroFootSty}>
-                        <span style={heroFootItemSty}>
-                            {allStudied
-                                ? testPassed
-                                    ? "테스트 통과"
-                                    : tested
-                                      ? "재도전"
-                                      : "테스트 가능"
-                                : `${words.length - studiedCount}개 남음`}
-                        </span>
                     </div>
                 </div>
 
