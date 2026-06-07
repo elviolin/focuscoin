@@ -763,11 +763,6 @@ export default function EnglishWordChallenge({
                 <div style={heroSty}>
                     <div style={heroTopSty}>
                         <span style={heroLabelSty}>오늘의 학습</span>
-                        <span
-                            style={claimed ? rewardChipDoneSty : rewardChipSty}
-                        >
-                            {claimed ? "획득 완료" : `+${rewardCash}캐시`}
-                        </span>
                     </div>
                     <div style={heroProgressRowSty}>
                         <span style={heroNumSty}>{studiedCount}</span>
@@ -778,15 +773,6 @@ export default function EnglishWordChallenge({
                         <div style={{ ...heroBarFillSty, width: `${pct}%` }} />
                     </div>
                     <div style={heroFootSty}>
-                        <span style={heroFootItemSty}>
-                            🔥 연속{" "}
-                            <strong
-                                style={{ color: T.cText, fontWeight: T.wLabel }}
-                            >
-                                {streak}일
-                            </strong>{" "}
-                            학습 중
-                        </span>
                         <span style={heroFootItemSty}>
                             {allStudied
                                 ? testPassed
