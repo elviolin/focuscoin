@@ -32,10 +32,9 @@ const FONT =
     "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
 const GOAL = 8
 const COOLDOWN_MS = 5 * 60 * 1000
-const MISSION_TYPE = "DAILY_WATER_CUPS"
-const API_BASE_PROD = "https://api.planit-study.com"
-const API_BASE_DEV = "https://dev-api.planit-study.com"
-const API_PATH = "/v1/external-api/mission-completed"
+const SUPABASE_URL = "https://gjnwriqewsrwpbtxqbea.supabase.co"
+const SUPABASE_ANON_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqbndyaXFld3Nyd3BidHhxYmVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzOTIzNjQsImV4cCI6MjA5NTk2ODM2NH0.XAcRHkdHh8WmwhJgYht__CPmopQadvWVR3h7c8uFswU"
 
 function getQueryParam(name: string): string {
     if (typeof window === "undefined") return ""
@@ -45,40 +44,40 @@ function getQueryParam(name: string): string {
         return ""
     }
 }
-function detectIsDevEnv(propOverride?: string): boolean {
-    if (propOverride === "dev") return true
-    if (propOverride === "prod") return false
-    if (typeof window === "undefined") return false
-    const envParam = getQueryParam("env")
-    if (envParam === "dev" || envParam === "development") return true
-    const host = window.location.hostname.toLowerCase()
-    return (
-        host.includes("dev") ||
-        host.includes("staging") ||
-        host.includes("local")
-    )
+
+async function rpc(
+    fn: string,
+    body: Record<string, unknown>
+): Promise<any> {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+        method: "POST",
+        keepalive: true,
+        headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`rpc_${fn}_${res.status}`)
+    return res.json()
 }
 
 type ClaimResult = "success" | "duplicate" | "error"
 
 async function claimReward(
     userId: string,
-    isDev: boolean,
     mockResult?: ClaimResult
 ): Promise<ClaimResult> {
     if (mockResult || !userId) {
         await new Promise((r) => setTimeout(r, 600))
         return mockResult || "success"
     }
-    const base = isDev ? API_BASE_DEV : API_BASE_PROD
     try {
-        const res = await fetch(`${base}${API_PATH}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId, type: MISSION_TYPE }),
-        })
-        if (res.status === 204) return "success"
-        if (res.status === 409) return "duplicate"
+        const r = await rpc("claim_water_reward", { p_user_id: userId })
+        if (r && r.ok) return "success"
+        if (r && (r.error === "duplicate" || r.error === "already_claimed"))
+            return "duplicate"
         return "error"
     } catch {
         return "error"
@@ -135,11 +134,9 @@ const CupIcon = ({ filled, size = 52 }: { filled: boolean; size?: number }) => {
 
 export default function WaterChallenge({
     previewState = "empty",
-    apiEnv = "auto",
     mockApiResult = "success",
 }: {
     previewState?: string
-    apiEnv?: "auto" | "prod" | "dev"
     mockApiResult?: ClaimResult
 }) {
     const [count, setCount] = useState(0)
@@ -148,14 +145,39 @@ export default function WaterChallenge({
     const [adProgress, setAdProgress] = useState(0)
     const [adTimer, setAdTimer] = useState(5)
     const [toast, setToast] = useState("")
+    const [ready, setReady] = useState(false)
     const adIvRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const lastAddRef = useRef<number>(0)
+    const busyRef = useRef(false)
     const [userIdStr] = useState<string>(() => getQueryParam("userId"))
-    const isDev = detectIsDevEnv(apiEnv === "auto" ? undefined : apiEnv)
     const claimPromiseRef = useRef<Promise<ClaimResult> | null>(null)
 
     useEffect(() => {
+        if (!userIdStr) {
+            setReady(true)
+            return
+        }
+        let cancelled = false
+        rpc("get_water_status", { p_user_id: userIdStr })
+            .then((r) => {
+                if (cancelled) return
+                if (r && r.ok) {
+                    setCount(typeof r.cups === "number" ? r.cups : 0)
+                    setClaimed(!!r.claimed)
+                }
+                setReady(true)
+            })
+            .catch(() => {
+                if (!cancelled) setReady(true)
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [userIdStr])
+
+    useEffect(() => {
+        if (userIdStr) return
         if (adIvRef.current) {
             clearInterval(adIvRef.current)
             adIvRef.current = null
@@ -224,21 +246,50 @@ export default function WaterChallenge({
         toastTimerRef.current = setTimeout(() => setToast(""), 2200)
     }
     const handleAddCup = (n: number = 1) => {
-        if (claimed || allFull) return
-        const now = Date.now()
-        if (lastAddRef.current && now - lastAddRef.current < COOLDOWN_MS) {
-            showToast("다음 물 등록은 5분 뒤부터 가능해요!")
+        if (claimed || allFull || !ready) return
+        if (!userIdStr) {
+            const now = Date.now()
+            if (lastAddRef.current && now - lastAddRef.current < COOLDOWN_MS) {
+                showToast("다음 물 등록은 5분 뒤부터 가능해요!")
+                return
+            }
+            lastAddRef.current = now
+            setCount((c) => Math.min(c + n, GOAL))
             return
         }
-        lastAddRef.current = now
-        setCount((c) => Math.min(c + n, GOAL))
+        if (busyRef.current) return
+        busyRef.current = true
+        rpc("add_water_cups", { p_user_id: userIdStr, p_cups: n })
+            .then((r) => {
+                if (r && r.ok) {
+                    setCount(typeof r.cups === "number" ? r.cups : 0)
+                } else if (r && r.error === "cooldown") {
+                    showToast("다음 물 등록은 5분 뒤부터 가능해요!")
+                    if (typeof r.cups === "number") setCount(r.cups)
+                } else if (
+                    r &&
+                    (r.error === "already_full" ||
+                        r.error === "already_claimed")
+                ) {
+                    if (typeof r.cups === "number") setCount(r.cups)
+                    if (r.claimed) setClaimed(true)
+                } else {
+                    showToast("일시적인 오류가 발생했어요")
+                }
+            })
+            .catch(() => {
+                showToast("일시적인 오류가 발생했어요")
+            })
+            .finally(() => {
+                busyRef.current = false
+            })
     }
     const handleStartReward = () => {
         setPopup("ad")
         setAdProgress(0)
         setAdTimer(5)
         const mock = userIdStr ? undefined : mockApiResult
-        claimPromiseRef.current = claimReward(userIdStr, isDev, mock)
+        claimPromiseRef.current = claimReward(userIdStr, mock)
         let e = 0
         adIvRef.current = setInterval(() => {
             e++
@@ -268,7 +319,7 @@ export default function WaterChallenge({
         setAdTimer(0)
         setAdProgress(100)
         const mock = userIdStr ? undefined : mockApiResult
-        claimPromiseRef.current = claimReward(userIdStr, isDev, mock)
+        claimPromiseRef.current = claimReward(userIdStr, mock)
         claimPromiseRef.current.then((result) => {
             setTimeout(() => {
                 if (result === "success") setPopup("reward")
@@ -291,7 +342,13 @@ export default function WaterChallenge({
 
     let mainCta: React.ReactNode = null
     let showQuickChips = false
-    if (claimed) {
+    if (!ready) {
+        mainCta = (
+            <button disabled style={ctaSoftSty} className="wc-cta">
+                불러오는 중...
+            </button>
+        )
+    } else if (claimed) {
         mainCta = (
             <button disabled style={ctaSoftSty} className="wc-cta">
                 오늘 챌린지 완료 ✓
@@ -814,13 +871,6 @@ addPropertyControls(WaterChallenge, {
             "오늘 챌린지 완료",
         ],
         defaultValue: "empty",
-    },
-    apiEnv: {
-        type: ControlType.Enum,
-        title: "API 환경",
-        options: ["auto", "prod", "dev"],
-        optionTitles: ["자동 (URL ?env=)", "운영", "개발"],
-        defaultValue: "auto",
     },
     mockApiResult: {
         type: ControlType.Enum,
