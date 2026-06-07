@@ -35,6 +35,38 @@ function kstToday(): string {
 }
 
 /* ═══════════════════════════════════════════
+   플래닛 보상 적립 API (DEV_HANDOVER 명세)
+   - WebView URL: ?userId={USER_ID}&env={prod|dev}
+   - userId 없으면 mock 모드 (Framer 캔버스 테스트용)
+   - 204 적립 완료 / 409 이미 받음 / 그 외 오류
+   ═══════════════════════════════════════════ */
+const MISSION_API_PROD =
+    "https://api.planit-study.com/v1/external-api/mission-completed"
+const MISSION_API_DEV =
+    "https://dev-api.planit-study.com/v1/external-api/mission-completed"
+
+function getUrlParam(name: string): string {
+    if (typeof window === "undefined") return ""
+    try {
+        return new URLSearchParams(window.location.search).get(name) || ""
+    } catch (e) {
+        return ""
+    }
+}
+
+function resolveMissionApiUrl(apiEnv: string): string {
+    if (apiEnv === "prod") return MISSION_API_PROD
+    if (apiEnv === "dev") return MISSION_API_DEV
+    // auto: ?env=dev 또는 호스트명에 dev/staging/local 포함 시 개발 서버
+    if (typeof window !== "undefined") {
+        if (getUrlParam("env") === "dev") return MISSION_API_DEV
+        if (/dev|staging|local/i.test(window.location.hostname))
+            return MISSION_API_DEV
+    }
+    return MISSION_API_PROD
+}
+
+/* ═══════════════════════════════════════════
    Design Tokens
    ═══════════════════════════════════════════ */
 const T = {
@@ -146,7 +178,15 @@ type WordItem = {
     ex: string
     exKr: string
 }
-type Popup = null | "study" | "test" | "test_result" | "ad" | "reward"
+type Popup =
+    | null
+    | "study"
+    | "test"
+    | "test_result"
+    | "ad"
+    | "reward"
+    | "already"
+    | "api_error"
 type TestQuestion = {
     id: string
     en: string
@@ -304,12 +344,16 @@ export default function EnglishWordChallenge({
     supabaseUrl = SUPA_URL_DEFAULT,
     supabaseKey = SUPA_KEY_DEFAULT,
     challengeId = "english",
+    missionType = "DAILY_ENGLISH_QUIZ",
+    apiEnv = "auto",
 }: {
     mode?: string
     previewState?: string
     supabaseUrl?: string
     supabaseKey?: string
     challengeId?: string
+    missionType?: string
+    apiEnv?: string
 }) {
     const [words, setWords] = useState<WordItem[]>(FALLBACK_WORDS)
     const [config, setConfig] = useState<ChallengeConfig>(DEFAULT_CONFIG)
@@ -330,6 +374,8 @@ export default function EnglishWordChallenge({
     const [adTimer, setAdTimer] = useState(DEFAULT_CONFIG.adSeconds)
     const adIvRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const deviceIdRef = useRef<string>("")
+    const urlUserIdRef = useRef<string>("")
+    const claimReqRef = useRef<Promise<number | "error"> | null>(null)
     const studiedRef = useRef<Record<string, boolean>>({})
     studiedRef.current = studied
 
@@ -368,7 +414,9 @@ export default function EnglishWordChallenge({
     useEffect(() => {
         if (mode !== "live") return
         let cancelled = false
-        deviceIdRef.current = getDeviceId()
+        // WebView URL의 userId가 있으면 그것을 진행 기록 키로 사용 (기기 바뀌어도 유지)
+        urlUserIdRef.current = getUrlParam("userId")
+        deviceIdRef.current = urlUserIdRef.current || getDeviceId()
         setLoading(true)
 
         const h = {
@@ -395,7 +443,7 @@ export default function EnglishWordChallenge({
                 method: "POST",
                 headers: h,
                 body: JSON.stringify({
-                    p_device_id: getDeviceId(),
+                    p_device_id: deviceIdRef.current,
                     p_challenge_id: challengeId,
                 }),
             }).then((r) => r.json()),
@@ -651,11 +699,38 @@ export default function EnglishWordChallenge({
             test_passed: false,
         })
     }
+    const callMissionApi = (): Promise<number | "error"> => {
+        return fetch(resolveMissionApiUrl(apiEnv), {
+            method: "POST",
+            keepalive: true,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                userId: urlUserIdRef.current,
+                type: missionType,
+            }),
+        })
+            .then((r) => r.status)
+            .catch(() => "error" as const)
+    }
+    const routeClaimResult = (st: number | "error") => {
+        if (st === 204) {
+            setPopup("reward")
+        } else if (st === 409) {
+            setPopup("already")
+        } else {
+            setPopup("api_error")
+        }
+    }
     const handleWatchAd = () => {
         const total = config.adSeconds
         setPopup("ad")
         setAdProgress(0)
         setAdTimer(total)
+        // 광고와 병렬로 보상 적립 API 호출 (HANDOVER 명세)
+        // userId 없으면 mock 모드 → 항상 성공(204) 처리
+        claimReqRef.current = urlUserIdRef.current
+            ? callMissionApi()
+            : Promise.resolve(204)
         let e = 0
         adIvRef.current = setInterval(() => {
             e++
@@ -666,9 +741,18 @@ export default function EnglishWordChallenge({
                     clearInterval(adIvRef.current)
                     adIvRef.current = null
                 }
-                setTimeout(() => setPopup("reward"), 250)
+                setTimeout(() => {
+                    const req = claimReqRef.current || Promise.resolve(204)
+                    req.then((st) => routeClaimResult(st))
+                }, 250)
             }
         }, 1000)
+    }
+    const handleRetryApi = () => {
+        claimReqRef.current = urlUserIdRef.current
+            ? callMissionApi()
+            : Promise.resolve(204)
+        claimReqRef.current.then((st) => routeClaimResult(st))
     }
     const handleClaim = () => {
         setClaimed(true)
@@ -1154,7 +1238,7 @@ export default function EnglishWordChallenge({
                 </div>
             )}
 
-            {/* ─── Reward Popup ─── */}
+            {/* ─── Reward Popup (204) ─── */}
             {popup === "reward" && (
                 <div className="ewc-overlay" style={overlayCenterSty}>
                     <div className="ewc-sheet-center" style={sheetCenterSty}>
@@ -1169,6 +1253,47 @@ export default function EnglishWordChallenge({
                             onClick={handleClaim}
                         >
                             확인
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Already Claimed Popup (409) ─── */}
+            {popup === "already" && (
+                <div className="ewc-overlay" style={overlayCenterSty}>
+                    <div className="ewc-sheet-center" style={sheetCenterSty}>
+                        <div style={scoreEmojiSty}>✅</div>
+                        <div style={mTitleSty}>이미 받은 보상이에요</div>
+                        <button
+                            className="ewc-m-btn"
+                            style={mBtnGreenSty}
+                            onClick={handleClaim}
+                        >
+                            확인
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ─── API Error Popup (500 등) ─── */}
+            {popup === "api_error" && (
+                <div className="ewc-overlay" style={overlayCenterSty}>
+                    <div className="ewc-sheet-center" style={sheetCenterSty}>
+                        <div style={scoreEmojiSty}>⚠️</div>
+                        <div style={mTitleSty}>일시적인 오류</div>
+                        <button
+                            className="ewc-m-btn"
+                            style={mBtnGreenSty}
+                            onClick={handleRetryApi}
+                        >
+                            다시 시도
+                        </button>
+                        <button
+                            className="ewc-m-btn"
+                            style={mBtnGhostSty}
+                            onClick={handleClosePopup}
+                        >
+                            닫기
                         </button>
                     </div>
                 </div>
@@ -1828,6 +1953,20 @@ addPropertyControls(EnglishWordChallenge, {
         type: ControlType.String,
         title: "챌린지 ID",
         defaultValue: "english",
+        hidden: (props: any) => props.mode !== "live",
+    },
+    missionType: {
+        type: ControlType.String,
+        title: "미션 타입",
+        defaultValue: "DAILY_ENGLISH_QUIZ",
+        hidden: (props: any) => props.mode !== "live",
+    },
+    apiEnv: {
+        type: ControlType.Enum,
+        title: "API 서버",
+        options: ["auto", "prod", "dev"],
+        optionTitles: ["자동 감지", "운영", "개발"],
+        defaultValue: "auto",
         hidden: (props: any) => props.mode !== "live",
     },
 })
