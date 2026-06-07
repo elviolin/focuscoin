@@ -13,24 +13,9 @@ const SUPA_KEY_DEFAULT =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqbndyaXFld3Nyd3BidHhxYmVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzOTIzNjQsImV4cCI6MjA5NTk2ODM2NH0.XAcRHkdHh8WmwhJgYht__CPmopQadvWVR3h7c8uFswU"
 
 const MISSIONS = [
-    {
-        id: "english",
-        label: "영단어 챌린지",
-        emoji: "📖",
-        linked: true,
-    },
-    {
-        id: "pill",
-        label: "영양제 챙기기",
-        emoji: "💊",
-        linked: false,
-    },
-    {
-        id: "water",
-        label: "물 마시기",
-        emoji: "💧",
-        linked: false,
-    },
+    { id: "english", label: "영단어 챌린지", linked: true },
+    { id: "pill", label: "영양제 챙기기", linked: false },
+    { id: "water", label: "물 마시기", linked: false },
 ]
 
 function kstToday(): string {
@@ -47,15 +32,15 @@ function kstDaysAgo(n: number): string {
    ═══════════════════════════════════════════ */
 const T = {
     rBtn: 12,
-    rCard: 18,
+    rCard: 16,
     rPill: 100,
     tXs: 11,
     tSm: 13,
     tMd: 14,
     tLg: 16,
-    tXl: 20,
-    t2xl: 26,
-    t3xl: 38,
+    tXl: 19,
+    t2xl: 24,
+    t3xl: 30,
     wBody: 500,
     wLabel: 600,
     wBold: 700,
@@ -280,7 +265,6 @@ export default function MissionDashboard({
                 {/* ─── KPI Cards ─── */}
                 <div style={kpiGridSty}>
                     <div style={kpiCardSty}>
-                        <div style={kpiIconSty}>🙋</div>
                         <div style={kpiLabelSty}>참여</div>
                         <div style={kpiNumSty}>{total.participated}</div>
                         <div style={kpiMetaSty}>
@@ -288,13 +272,11 @@ export default function MissionDashboard({
                         </div>
                     </div>
                     <div style={kpiCardSty}>
-                        <div style={kpiIconSty}>✏️</div>
                         <div style={kpiLabelSty}>학습 완료</div>
                         <div style={kpiNumSty}>{total.studiedDone}</div>
                         <div style={kpiMetaSty}>5개 단어 모두 학습</div>
                     </div>
                     <div style={kpiCardSty}>
-                        <div style={kpiIconSty}>🎯</div>
                         <div style={kpiLabelSty}>테스트 통과</div>
                         <div style={{ ...kpiNumSty, color: T.cGreen }}>
                             {total.passed}
@@ -302,7 +284,6 @@ export default function MissionDashboard({
                         <div style={kpiMetaSty}>통과율 {passRate}%</div>
                     </div>
                     <div style={kpiCardSty}>
-                        <div style={kpiIconSty}>💰</div>
                         <div style={kpiLabelSty}>보상 적립</div>
                         <div style={{ ...kpiNumSty, color: T.cGreenDk }}>
                             {total.claimed}
@@ -311,106 +292,119 @@ export default function MissionDashboard({
                     </div>
                 </div>
 
-                {/* ─── 퍼널 ─── */}
-                <div style={cardSty}>
-                    <div style={cardTitleSty}>완료 퍼널</div>
-                    <div style={funnelWrapSty}>
-                        {[
-                            { label: "참여", n: total.participated, c: "#B0B8C1" },
-                            { label: "학습 완료", n: total.studiedDone, c: T.cInfo },
-                            { label: "테스트 통과", n: total.passed, c: T.cGreen },
-                            { label: "보상 적립", n: total.claimed, c: T.cGreenDk },
-                        ].map((s, i) => {
-                            const max = Math.max(total.participated, 1)
-                            const w = Math.max(
-                                Math.round((s.n / max) * 100),
-                                s.n > 0 ? 8 : 2
-                            )
-                            return (
-                                <div key={i} style={funnelRowSty}>
-                                    <span style={funnelLabelSty}>{s.label}</span>
-                                    <div style={funnelBarBgSty}>
-                                        <div
-                                            style={{
-                                                ...funnelBarSty,
-                                                width: `${w}%`,
-                                                background: s.c,
-                                            }}
-                                        />
+                {/* ─── 퍼널 + 미션별 현황 (좌우 배치) ─── */}
+                <div style={twoColSty}>
+                    <div style={cardSty}>
+                        <div style={cardTitleSty}>완료 퍼널</div>
+                        <div style={funnelWrapSty}>
+                            {[
+                                {
+                                    label: "참여",
+                                    n: total.participated,
+                                    c: "#B0B8C1",
+                                },
+                                {
+                                    label: "학습 완료",
+                                    n: total.studiedDone,
+                                    c: T.cInfo,
+                                },
+                                {
+                                    label: "테스트 통과",
+                                    n: total.passed,
+                                    c: T.cGreen,
+                                },
+                                {
+                                    label: "보상 적립",
+                                    n: total.claimed,
+                                    c: T.cGreenDk,
+                                },
+                            ].map((s, i) => {
+                                const max = Math.max(total.participated, 1)
+                                const w = Math.max(
+                                    Math.round((s.n / max) * 100),
+                                    s.n > 0 ? 8 : 2
+                                )
+                                return (
+                                    <div key={i} style={funnelRowSty}>
+                                        <span style={funnelLabelSty}>
+                                            {s.label}
+                                        </span>
+                                        <div style={funnelBarBgSty}>
+                                            <div
+                                                style={{
+                                                    ...funnelBarSty,
+                                                    width: `${w}%`,
+                                                    background: s.c,
+                                                }}
+                                            />
+                                        </div>
+                                        <span style={funnelNumSty}>{s.n}</span>
                                     </div>
-                                    <span style={funnelNumSty}>{s.n}</span>
-                                </div>
-                            )
-                        })}
+                                )
+                            })}
+                        </div>
                     </div>
-                </div>
 
-                {/* ─── 미션별 현황 ─── */}
-                <div style={missionGridSty}>
-                    {MISSIONS.map((m) => {
-                        const list = rows.filter(
-                            (r) => r.challenge_id === m.id
-                        )
-                        const a = agg(list)
-                        const cfg = configs.find((c) => c.id === m.id)
-                        return (
-                            <div key={m.id} style={cardSty}>
-                                <div style={missionHeadSty}>
-                                    <span style={missionTitleSty}>
-                                        {m.emoji} {m.label}
-                                    </span>
-                                    <span
-                                        style={
-                                            m.linked
-                                                ? linkedBadgeSty
-                                                : unlinkedBadgeSty
-                                        }
-                                    >
-                                        {m.linked ? "운영 중" : "준비 중"}
-                                    </span>
-                                </div>
-                                <div style={missionStatsSty}>
-                                    <div style={missionStatSty}>
-                                        <div style={missionStatNumSty}>
-                                            {a.participated}
+                    <div style={cardSty}>
+                        <div style={cardTitleSty}>미션별 현황</div>
+                        <div style={missionListSty}>
+                            {MISSIONS.map((m) => {
+                                const list = rows.filter(
+                                    (r) => r.challenge_id === m.id
+                                )
+                                const a = agg(list)
+                                return (
+                                    <div key={m.id} style={missionRowSty}>
+                                        <div style={missionLeftSty}>
+                                            <span style={missionTitleSty}>
+                                                {m.label}
+                                            </span>
+                                            <span
+                                                style={
+                                                    m.linked
+                                                        ? linkedBadgeSty
+                                                        : unlinkedBadgeSty
+                                                }
+                                            >
+                                                {m.linked
+                                                    ? "운영 중"
+                                                    : "준비 중"}
+                                            </span>
                                         </div>
-                                        <div style={missionStatLabelSty}>
-                                            참여
-                                        </div>
-                                    </div>
-                                    <div style={missionStatSty}>
-                                        <div style={missionStatNumSty}>
-                                            {a.passed}
-                                        </div>
-                                        <div style={missionStatLabelSty}>
-                                            통과
-                                        </div>
-                                    </div>
-                                    <div style={missionStatSty}>
-                                        <div
-                                            style={{
-                                                ...missionStatNumSty,
-                                                color: T.cGreenDk,
-                                            }}
-                                        >
-                                            {a.claimed}
-                                        </div>
-                                        <div style={missionStatLabelSty}>
-                                            적립
-                                        </div>
-                                    </div>
-                                    <div style={missionStatSty}>
-                                        <div style={missionStatNumSty}>
-                                            +{cfg ? cfg.reward_cash : 10}
-                                        </div>
-                                        <div style={missionStatLabelSty}>
-                                            캐시
+                                        <div style={missionNumsSty}>
+                                            <span style={missionNumItemSty}>
+                                                참여{" "}
+                                                <strong
+                                                    style={missionNumStrongSty}
+                                                >
+                                                    {a.participated}
+                                                </strong>
+                                            </span>
+                                            <span style={missionNumItemSty}>
+                                                통과{" "}
+                                                <strong
+                                                    style={missionNumStrongSty}
+                                                >
+                                                    {a.passed}
+                                                </strong>
+                                            </span>
+                                            <span style={missionNumItemSty}>
+                                                적립{" "}
+                                                <strong
+                                                    style={{
+                                                        ...missionNumStrongSty,
+                                                        color: T.cGreenDk,
+                                                    }}
+                                                >
+                                                    {a.claimed}
+                                                </strong>
+                                            </span>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        )
-                    })}
+                                )
+                            })}
+                        </div>
+                    </div>
                 </div>
 
                 {/* ─── 최근 활동 ─── */}
@@ -418,7 +412,7 @@ export default function MissionDashboard({
                     <div style={cardTitleRowSty}>
                         <span style={cardTitleSty}>최근 활동</span>
                         <span style={cardMetaSty}>
-                            최근 {Math.min(rows.length, 15)}건 (총 {rows.length}
+                            최근 {Math.min(rows.length, 10)}건 (총 {rows.length}
                             건)
                         </span>
                     </div>
@@ -440,7 +434,7 @@ export default function MissionDashboard({
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.slice(0, 15).map((r) => {
+                                {rows.slice(0, 10).map((r) => {
                                     const mission = MISSIONS.find(
                                         (m) => m.id === r.challenge_id
                                     )
@@ -475,9 +469,7 @@ export default function MissionDashboard({
                                             </td>
                                             <td style={tdSty}>
                                                 {mission
-                                                    ? mission.emoji +
-                                                      " " +
-                                                      mission.label
+                                                    ? mission.label
                                                     : r.challenge_id}
                                             </td>
                                             <td style={tdSty}>
@@ -562,10 +554,10 @@ const loadingDotSty: React.CSSProperties = {
 const bodySty: React.CSSProperties = {
     flex: 1,
     overflowY: "auto",
-    padding: "32px 40px 56px",
+    padding: "24px 36px 36px",
     display: "flex",
     flexDirection: "column",
-    gap: 14,
+    gap: 12,
     maxWidth: 1160,
     margin: "0 auto",
     width: "100%",
@@ -576,13 +568,13 @@ const hdrSty: React.CSSProperties = {
     alignItems: "center",
     gap: 16,
     flexWrap: "wrap",
-    marginBottom: 6,
+    marginBottom: 2,
 }
 const hdrTitleSty: React.CSSProperties = {
     margin: 0,
     fontSize: T.t2xl,
     fontWeight: T.wBold,
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
 }
 const hdrRightSty: React.CSSProperties = {
     display: "flex",
@@ -600,7 +592,7 @@ const periodGroupSty: React.CSSProperties = {
 const periodBtnSty: React.CSSProperties = {
     border: "none",
     borderRadius: 9,
-    padding: "7px 14px",
+    padding: "6px 13px",
     fontSize: T.tSm,
     fontWeight: T.wLabel,
     fontFamily: FONT,
@@ -610,7 +602,7 @@ const refreshBtnSty: React.CSSProperties = {
     border: "none",
     background: T.cBg,
     borderRadius: T.rBtn,
-    padding: "10px 16px",
+    padding: "9px 15px",
     fontSize: T.tSm,
     fontWeight: T.wLabel,
     fontFamily: FONT,
@@ -629,18 +621,13 @@ const errorBannerSty: React.CSSProperties = {
 const kpiGridSty: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 14,
+    gap: 12,
 }
 const kpiCardSty: React.CSSProperties = {
     background: T.cBg,
     borderRadius: T.rCard,
-    padding: "20px 22px",
+    padding: "16px 20px",
     boxShadow: T.shadow,
-}
-const kpiIconSty: React.CSSProperties = {
-    fontSize: 22,
-    marginBottom: 12,
-    lineHeight: 1,
 }
 const kpiLabelSty: React.CSSProperties = {
     fontSize: T.tSm,
@@ -651,32 +638,38 @@ const kpiLabelSty: React.CSSProperties = {
 const kpiNumSty: React.CSSProperties = {
     fontSize: T.t3xl,
     fontWeight: T.wBold,
-    letterSpacing: -1.2,
+    letterSpacing: -1,
     lineHeight: 1,
     color: T.cText,
 }
 const kpiMetaSty: React.CSSProperties = {
     fontSize: T.tXs,
     color: T.cText3,
-    marginTop: 9,
+    marginTop: 7,
     fontWeight: T.wBody,
+}
+const twoColSty: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+    alignItems: "stretch",
 }
 const cardSty: React.CSSProperties = {
     background: T.cBg,
     borderRadius: T.rCard,
-    padding: "22px 24px",
+    padding: "18px 20px",
     boxShadow: T.shadow,
 }
 const cardTitleSty: React.CSSProperties = {
-    fontSize: T.tLg,
+    fontSize: T.tMd,
     fontWeight: T.wBold,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
 }
 const cardTitleRowSty: React.CSSProperties = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "baseline",
-    marginBottom: 14,
+    marginBottom: 10,
 }
 const cardMetaSty: React.CSSProperties = {
     fontSize: T.tXs,
@@ -686,16 +679,16 @@ const cardMetaSty: React.CSSProperties = {
 const funnelWrapSty: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
-    gap: 12,
-    marginTop: 16,
+    gap: 9,
+    marginTop: 14,
 }
 const funnelRowSty: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: 14,
+    gap: 12,
 }
 const funnelLabelSty: React.CSSProperties = {
-    width: 88,
+    width: 80,
     fontSize: T.tSm,
     color: T.cText2,
     fontWeight: T.wLabel,
@@ -703,43 +696,50 @@ const funnelLabelSty: React.CSSProperties = {
 }
 const funnelBarBgSty: React.CSSProperties = {
     flex: 1,
-    height: 26,
+    height: 18,
     background: T.cDivider,
-    borderRadius: 8,
+    borderRadius: 6,
     overflow: "hidden",
 }
 const funnelBarSty: React.CSSProperties = {
     height: "100%",
-    borderRadius: 8,
+    borderRadius: 6,
     transition: "width 0.5s ease",
 }
 const funnelNumSty: React.CSSProperties = {
-    width: 42,
+    width: 36,
     textAlign: "right",
-    fontSize: T.tMd,
+    fontSize: T.tSm,
     fontWeight: T.wBold,
     flexShrink: 0,
 }
-const missionGridSty: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: 14,
+const missionListSty: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    marginTop: 6,
 }
-const missionHeadSty: React.CSSProperties = {
+const missionRowSty: React.CSSProperties = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    gap: 12,
+    padding: "11px 0",
+    borderBottom: `1px solid ${T.cDivider}`,
+}
+const missionLeftSty: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
 }
 const missionTitleSty: React.CSSProperties = {
-    fontSize: T.tLg,
+    fontSize: T.tSm,
     fontWeight: T.wBold,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
 }
 const linkedBadgeSty: React.CSSProperties = {
     fontSize: T.tXs,
     fontWeight: T.wBold,
-    padding: "4px 10px",
+    padding: "2px 8px",
     borderRadius: T.rPill,
     background: T.cGreenBg,
     color: T.cGreenDk,
@@ -747,33 +747,26 @@ const linkedBadgeSty: React.CSSProperties = {
 const unlinkedBadgeSty: React.CSSProperties = {
     fontSize: T.tXs,
     fontWeight: T.wBold,
-    padding: "4px 10px",
+    padding: "2px 8px",
     borderRadius: T.rPill,
     background: T.cWarnBg,
     color: T.cWarn,
 }
-const missionStatsSty: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: 6,
-    background: T.cCard,
-    borderRadius: T.rBtn,
-    padding: "14px 8px",
+const missionNumsSty: React.CSSProperties = {
+    display: "flex",
+    gap: 14,
 }
-const missionStatSty: React.CSSProperties = { textAlign: "center" }
-const missionStatNumSty: React.CSSProperties = {
-    fontSize: T.tXl,
-    fontWeight: T.wBold,
-    letterSpacing: -0.5,
-}
-const missionStatLabelSty: React.CSSProperties = {
-    fontSize: T.tXs,
+const missionNumItemSty: React.CSSProperties = {
+    fontSize: T.tSm,
     color: T.cText3,
-    marginTop: 4,
     fontWeight: T.wBody,
 }
+const missionNumStrongSty: React.CSSProperties = {
+    color: T.cText,
+    fontWeight: T.wBold,
+}
 const emptySty: React.CSSProperties = {
-    padding: "36px 0",
+    padding: "28px 0",
     textAlign: "center",
     fontSize: T.tSm,
     color: T.cText3,
@@ -786,7 +779,7 @@ const tableSty: React.CSSProperties = {
 }
 const thSty: React.CSSProperties = {
     textAlign: "left",
-    padding: "8px 10px",
+    padding: "7px 10px",
     fontSize: T.tXs,
     color: T.cText3,
     fontWeight: T.wLabel,
@@ -794,7 +787,7 @@ const thSty: React.CSSProperties = {
     whiteSpace: "nowrap",
 }
 const tdSty: React.CSSProperties = {
-    padding: "11px 10px",
+    padding: "9px 10px",
     borderBottom: `1px solid ${T.cDivider}`,
     color: T.cText,
     fontWeight: T.wBody,
