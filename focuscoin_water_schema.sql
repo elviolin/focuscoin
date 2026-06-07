@@ -57,13 +57,13 @@ begin
         return json_build_object('ok', true, 'cups', 0, 'claimed', false, 'cooldown_remain_sec', 0);
     end if;
     if v_row.last_added_at is not null then
-        v_remain := greatest(0, 300 - floor(extract(epoch from (now() - v_row.last_added_at)))::integer);
+        v_remain := greatest(0, 180 - floor(extract(epoch from (now() - v_row.last_added_at)))::integer);
     end if;
     return json_build_object('ok', true, 'cups', v_row.cups, 'claimed', v_row.claimed, 'cooldown_remain_sec', v_remain);
 end;
 $$;
 
--- 5) RPC: 물 등록 (서버에서 5분 쿨다운 강제 — 클라이언트 조작 불가)
+-- 5) RPC: 물 등록 (서버에서 3분 쿨다운 강제 — 클라이언트 조작 불가)
 create or replace function public.add_water_cups(p_user_id text, p_cups integer)
 returns json
 language plpgsql security definer set search_path = public
@@ -95,8 +95,8 @@ begin
         return json_build_object('ok', false, 'error', 'already_full', 'cups', v_row.cups, 'claimed', v_row.claimed);
     end if;
     if v_row.last_added_at is not null
-       and now() - v_row.last_added_at < interval '5 minutes' then
-        v_remain := greatest(0, 300 - floor(extract(epoch from (now() - v_row.last_added_at)))::integer);
+       and now() - v_row.last_added_at < interval '3 minutes' then
+        v_remain := greatest(0, 180 - floor(extract(epoch from (now() - v_row.last_added_at)))::integer);
         return json_build_object('ok', false, 'error', 'cooldown', 'cooldown_remain_sec', v_remain, 'cups', v_row.cups, 'claimed', v_row.claimed);
     end if;
 
@@ -107,7 +107,7 @@ begin
      where id = v_row.id
      returning * into v_row;
 
-    return json_build_object('ok', true, 'cups', v_row.cups, 'claimed', v_row.claimed, 'cooldown_remain_sec', 300);
+    return json_build_object('ok', true, 'cups', v_row.cups, 'claimed', v_row.claimed, 'cooldown_remain_sec', 180);
 end;
 $$;
 

@@ -31,7 +31,7 @@ const T = {
 const FONT =
     "'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
 const GOAL = 8
-const COOLDOWN_MS = 5 * 60 * 1000
+const COOLDOWN_MS = 3 * 60 * 1000
 const SUPABASE_URL = "https://gjnwriqewsrwpbtxqbea.supabase.co"
 const SUPABASE_ANON_KEY =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqbndyaXFld3Nyd3BidHhxYmVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzOTIzNjQsImV4cCI6MjA5NTk2ODM2NH0.XAcRHkdHh8WmwhJgYht__CPmopQadvWVR3h7c8uFswU"
@@ -250,7 +250,7 @@ export default function WaterChallenge({
         if (!userIdStr) {
             const now = Date.now()
             if (lastAddRef.current && now - lastAddRef.current < COOLDOWN_MS) {
-                showToast("다음 물 등록은 5분 뒤부터 가능해요!")
+                showToast("다음 물 등록은 3분 뒤부터 가능해요!")
                 return
             }
             lastAddRef.current = now
@@ -264,7 +264,7 @@ export default function WaterChallenge({
                 if (r && r.ok) {
                     setCount(typeof r.cups === "number" ? r.cups : 0)
                 } else if (r && r.error === "cooldown") {
-                    showToast("다음 물 등록은 5분 뒤부터 가능해요!")
+                    showToast("다음 물 등록은 3분 뒤부터 가능해요!")
                     if (typeof r.cups === "number") setCount(r.cups)
                 } else if (
                     r &&
