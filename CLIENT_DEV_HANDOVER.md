@@ -88,12 +88,29 @@ WebView 컨테이너는 이 사이즈 이상으로 설정. 컴포넌트는 부�
 
 ## 5. WebView ↔ 부모 앱 통신
 
-**현재 단방향**: WebView가 부모 앱으로 신호를 보내지 않습니다. 챌린지 완료 후 사용자가 부모 앱 네비게이션으로 직접 닫아야 합니다.
+**(v2.1) 물 마시기는 보상 적립 완료 시 부모 앱으로 이벤트를 전송합니다.** 보상 팝업에서 "확인" 탭 시 1회 발송:
+
+```json
+{
+  "type": "MISSION_COMPLETED",
+  "mission": "DAILY_WATER_CUPS",
+  "rewardCoins": 10,
+  "userId": "abc123"
+}
+```
+
+| 환경 | 수신 방법 |
+|---|---|
+| React Native WebView | `onMessage={(e) => JSON.parse(e.nativeEvent.data)}` (`window.ReactNativeWebView.postMessage`로 발송됨) |
+| iframe 임베드 | `window.addEventListener("message", ...)` (payload는 JSON 문자열) |
+| 네이티브 WebView (iOS/Android) | JS 브리지 별도 연결 필요 시 요청 |
+
+부모 앱이 리스너를 등록하지 않아도 무해합니다 (이벤트만 발송, 응답 불필요). 수신 시 WebView 닫기 + 캐시 잔액 새로고침에 활용하세요.
 
 ### 추후 개선 가능
 
-- **postMessage 통신**: 보상 적립 완료 시 부모 앱에 이벤트 전송 → WebView 자동 닫기 + 캐시 잔액 새로고침 (`Challenge_water.tsx`의 `handleClaim`에 `window.parent.postMessage(...)` 추가)
 - **딥링크**: 챌린지 완료 후 부모 앱 특정 화면(캐시 잔액, 마이페이지 등)으로 이동
+- 영단어/영양제에도 동일 이벤트 적용 (백엔드 연동 시 함께)
 
 ---
 

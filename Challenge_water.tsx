@@ -159,18 +159,28 @@ export default function WaterChallenge({
             return
         }
         let cancelled = false
-        rpc("get_water_status", { p_user_id: userIdStr })
-            .then((r) => {
-                if (cancelled) return
-                if (r && r.ok) {
-                    setCount(typeof r.cups === "number" ? r.cups : 0)
-                    setClaimed(!!r.claimed)
-                }
-                setReady(true)
-            })
-            .catch(() => {
-                if (!cancelled) setReady(true)
-            })
+        const load = (attempt: number) => {
+            rpc("get_water_status", { p_user_id: userIdStr })
+                .then((r) => {
+                    if (cancelled) return
+                    if (r && r.ok) {
+                        setCount(typeof r.cups === "number" ? r.cups : 0)
+                        setClaimed(!!r.claimed)
+                    }
+                    setReady(true)
+                })
+                .catch(() => {
+                    if (cancelled) return
+                    if (attempt < 2) {
+                        setTimeout(() => {
+                            if (!cancelled) load(attempt + 1)
+                        }, 1200)
+                    } else {
+                        setReady(true)
+                    }
+                })
+        }
+        load(0)
         return () => {
             cancelled = true
         }
@@ -245,6 +255,33 @@ export default function WaterChallenge({
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
         toastTimerRef.current = setTimeout(() => setToast(""), 2200)
     }
+    const syncStatus = () => {
+        if (!userIdStr) return
+        rpc("get_water_status", { p_user_id: userIdStr })
+            .then((r) => {
+                if (r && r.ok) {
+                    setCount(typeof r.cups === "number" ? r.cups : 0)
+                    setClaimed(!!r.claimed)
+                }
+            })
+            .catch(() => {})
+    }
+    const notifyParent = () => {
+        try {
+            const payload = JSON.stringify({
+                type: "MISSION_COMPLETED",
+                mission: "DAILY_WATER_CUPS",
+                rewardCoins: 10,
+                userId: userIdStr,
+            })
+            const w = window as any
+            if (w.ReactNativeWebView && w.ReactNativeWebView.postMessage) {
+                w.ReactNativeWebView.postMessage(payload)
+            } else if (window.parent && window.parent !== window) {
+                window.parent.postMessage(payload, "*")
+            }
+        } catch {}
+    }
     const handleAddCup = (n: number = 1) => {
         if (claimed || allFull || !ready) return
         if (!userIdStr) {
@@ -275,10 +312,12 @@ export default function WaterChallenge({
                     if (r.claimed) setClaimed(true)
                 } else {
                     showToast("일시적인 오류가 발생했어요")
+                    syncStatus()
                 }
             })
             .catch(() => {
                 showToast("일시적인 오류가 발생했어요")
+                syncStatus()
             })
             .finally(() => {
                 busyRef.current = false
@@ -331,6 +370,7 @@ export default function WaterChallenge({
     const handleClaim = () => {
         setClaimed(true)
         setPopup(null)
+        if (userIdStr) notifyParent()
     }
     const handleClosePopup = () => {
         if (adIvRef.current) {
