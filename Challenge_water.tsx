@@ -148,6 +148,7 @@ export default function WaterChallenge({
     const [ready, setReady] = useState(false)
     const [cooldownLeft, setCooldownLeft] = useState(0)
     const cdIvRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const cdEndRef = useRef<number>(0)
     const adIvRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const lastAddRef = useRef<number>(0)
@@ -198,6 +199,17 @@ export default function WaterChallenge({
     }, [userIdStr])
 
     useEffect(() => {
+        if (!userIdStr || typeof document === "undefined") return
+        const onVisible = () => {
+            if (document.visibilityState === "visible") syncStatus()
+        }
+        document.addEventListener("visibilitychange", onVisible)
+        return () => {
+            document.removeEventListener("visibilitychange", onVisible)
+        }
+    }, [userIdStr])
+
+    useEffect(() => {
         if (userIdStr) return
         if (adIvRef.current) {
             clearInterval(adIvRef.current)
@@ -214,6 +226,7 @@ export default function WaterChallenge({
             clearInterval(cdIvRef.current)
             cdIvRef.current = null
         }
+        cdEndRef.current = 0
         setCooldownLeft(0)
         setAdProgress(0)
         setAdTimer(5)
@@ -277,8 +290,18 @@ export default function WaterChallenge({
         rpc("get_water_status", { p_user_id: userIdStr })
             .then((r) => {
                 if (r && r.ok) {
-                    setCount(typeof r.cups === "number" ? r.cups : 0)
+                    const cups = typeof r.cups === "number" ? r.cups : 0
+                    setCount(cups)
                     setClaimed(!!r.claimed)
+                    if (!r.claimed && cups < GOAL) {
+                        startCooldown(
+                            typeof r.cooldown_remain_sec === "number"
+                                ? r.cooldown_remain_sec
+                                : 0
+                        )
+                    } else {
+                        startCooldown(0)
+                    }
                 }
             })
             .catch(() => {})
@@ -297,20 +320,26 @@ export default function WaterChallenge({
             clearInterval(cdIvRef.current)
             cdIvRef.current = null
         }
+        if (s <= 0) {
+            cdEndRef.current = 0
+            setCooldownLeft(0)
+            return
+        }
+        cdEndRef.current = Date.now() + s * 1000
         setCooldownLeft(s)
-        if (s <= 0) return
         cdIvRef.current = setInterval(() => {
-            setCooldownLeft((prev) => {
-                if (prev <= 1) {
-                    if (cdIvRef.current) {
-                        clearInterval(cdIvRef.current)
-                        cdIvRef.current = null
-                    }
-                    return 0
+            const left = Math.ceil((cdEndRef.current - Date.now()) / 1000)
+            if (left <= 0) {
+                if (cdIvRef.current) {
+                    clearInterval(cdIvRef.current)
+                    cdIvRef.current = null
                 }
-                return prev - 1
-            })
-        }, 1000)
+                cdEndRef.current = 0
+                setCooldownLeft(0)
+            } else {
+                setCooldownLeft(left)
+            }
+        }, 500)
     }
     const notifyParent = () => {
         try {
