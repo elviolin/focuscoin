@@ -164,6 +164,7 @@ const DEFAULT_VITAMINS: Vitamin[] = [
     { id: "v5", name: "마그네슘", dose: "1정", time: "자기 전" },
 ]
 const TIME_OPTIONS = ["아침", "점심", "저녁", "자기 전"]
+const DOSE_OPTIONS = ["1알", "2알", "3알", "1포", "2포"]
 
 /* ═══════════════════════════════════════════
    Icons
@@ -749,11 +750,33 @@ export default function VitaminChallenge({
                             <label style={fieldLabelSty}>
                                 복용량 <span style={fieldOptSty}>(선택)</span>
                             </label>
+                            <div style={{ ...timeChipsSty, marginBottom: 8 }}>
+                                {DOSE_OPTIONS.map((d) => {
+                                    const active = newDose === d
+                                    return (
+                                        <button
+                                            key={d}
+                                            className="vc-chip"
+                                            onClick={() =>
+                                                setNewDose(active ? "" : d)
+                                            }
+                                            style={{
+                                                ...timeChipSty,
+                                                ...(active
+                                                    ? timeChipActiveSty
+                                                    : {}),
+                                            }}
+                                        >
+                                            {d}
+                                        </button>
+                                    )
+                                })}
+                            </div>
                             <input
                                 type="text"
                                 value={newDose}
                                 onChange={(e) => setNewDose(e.target.value)}
-                                placeholder="예: 1000mg, 1정"
+                                placeholder="직접 입력 (예: 1000mg)"
                                 style={inputSty}
                                 className="vc-input"
                                 maxLength={20}
@@ -814,8 +837,10 @@ export default function VitaminChallenge({
                         style={{ ...sheetCenterSty, ...sheetCenterMotionSty }}
                     >
                         <div style={scoreEmojiSty}>🎉</div>
-                        <div style={mTitleSty}>잘 챙기셨어요!</div>
-                        <div style={mSubSty}>내일도 잊지 말고 챙겨요</div>
+                        <div style={mTitleSty}>오늘도 해냈어요!</div>
+                        <div style={mSubSty}>
+                            꾸준히 건강한 몸 만들어가요
+                        </div>
                         <button
                             onClick={handleClaim}
                             className="vc-m-btn"
